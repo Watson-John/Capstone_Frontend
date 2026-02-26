@@ -13,6 +13,8 @@ class SettingsPage extends StatelessWidget {
       ),
       body: const ThemedPageContent(
         title: 'Settings Page',
+        showTextHierarchy: true,
+        showColorRoles: true,
       ),
     );
   }
