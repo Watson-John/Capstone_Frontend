@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>LifeLog uses your camera to capture receipt photos for expense tracking.</string>
 </dict>
 </plist>
