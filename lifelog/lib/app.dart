@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'features/expense_tracker/presentation/add_expense_page.dart';
 import 'features/onboarding/presentation/onboarding_page.dart';
 import 'features/settings/presentation/settings_page.dart';
+import 'features/todo_list/presentation/add_todo_page.dart';
 
 class LifelogApp extends StatelessWidget {
   const LifelogApp({
@@ -36,12 +37,15 @@ class LifelogApp extends StatelessWidget {
           routes: {
             AppRoutes.onboarding: (context) => const OnboardingPage(),
             AppRoutes.dashboard: (context) => const MainShell(initialIndex: 2),
-            AppRoutes.expenseTracker: (context) => const MainShell(initialIndex: 1),
+            AppRoutes.expenseTracker: (context) =>
+                const MainShell(initialIndex: 1),
             AppRoutes.moodLogger: (context) => const MainShell(initialIndex: 3),
-            AppRoutes.gratitudeJournal: (context) => const MainShell(initialIndex: 4),
+            AppRoutes.gratitudeJournal: (context) =>
+                const MainShell(initialIndex: 4),
             AppRoutes.todoList: (context) => const MainShell(initialIndex: 0),
             AppRoutes.settings: (context) => const SettingsPage(),
             AppRoutes.addExpense: (context) => const AddExpensePage(),
+            AppRoutes.addTodo: (context) => const AddTodoPage(),
           },
         );
       },
