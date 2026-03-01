@@ -19,14 +19,6 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   late int _currentIndex;
 
-  static const _titles = <String>[
-    'To-Do',
-    'Expenses',
-    'Dashboard',
-    'Mood',
-    'Gratitude',
-  ];
-
   static const _destinations = <NavigationDestination>[
     NavigationDestination(
       icon: Icon(Icons.checklist_outlined),
@@ -74,14 +66,43 @@ class _MainShellState extends State<MainShell> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor:
+          const Color(0xFFF3EDCE), // Match beige background globally
       appBar: AppBar(
-        title: Text(_titles[_currentIndex]),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        titleSpacing: 16.0, // Match horizontal padding
+        title: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blueAccent, width: 2),
+              ),
+              child: const Icon(Icons.volunteer_activism, color: Colors.orange),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Lifelog',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.settings),
-            tooltip: 'Profile',
+            icon: const Icon(Icons.menu, size: 32, color: Color(0xFF3B4863)),
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRoutes.settings),
+            tooltip: 'Settings / Menu',
           ),
+          const SizedBox(width: 8), // Padding on right
         ],
       ),
       body: IndexedStack(
