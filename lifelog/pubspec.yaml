@@ -9,8 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  dynamic_color: 1.7.0
-  camera: ^0.11.2
+  dynamic_color: ^1.8.1
+  camera: ^0.12.0
   image_picker: ^1.2.1
   path_provider: ^2.1.5
   path: ^1.9.1
@@ -21,11 +21,15 @@ dependencies:
   firebase_messaging: ^16.1.2
   flutter_dotenv: ^6.0.0
   http: ^1.6.0
+  google_mlkit_text_recognition: ^0.15.0
+  tflite_flutter: ^0.10.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
+  integration_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
