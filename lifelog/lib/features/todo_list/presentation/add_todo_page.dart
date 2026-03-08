@@ -1,14 +1,19 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
 import '../domain/models/todo_model.dart';
 
 class AddTodoPage extends StatefulWidget {
-  const AddTodoPage({super.key});
+  final Todo? todoToEdit;
+  const AddTodoPage({super.key, this.todoToEdit});
 
   @override
   State<AddTodoPage> createState() => _AddTodoPageState();
@@ -28,6 +33,13 @@ class _AddTodoPageState extends State<AddTodoPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.todoToEdit != null) {
+      _taskController.text = widget.todoToEdit!.task;
+      _startDate = widget.todoToEdit!.startDate;
+      _dueDate = widget.todoToEdit!.dueDate;
+      _status = widget.todoToEdit!.status;
+      _imagePath = widget.todoToEdit!.imagePath;
+    }
     _loadHistory();
   }
 
@@ -106,6 +118,7 @@ class _AddTodoPageState extends State<AddTodoPage> {
     if (_taskController.text.trim().isEmpty) return;
 
     final newTodo = Todo(
+      id: widget.todoToEdit?.id,
       task: _taskController.text,
       startDate: _startDate,
       dueDate: _dueDate,
@@ -113,7 +126,62 @@ class _AddTodoPageState extends State<AddTodoPage> {
       imagePath: _imagePath,
     );
 
-    await DatabaseHelper().insertTodo(newTodo);
+    if (widget.todoToEdit == null) {
+      await DatabaseHelper().insertTodo(newTodo);
+
+      // Schedule notification in backend (Fire and forget, don't await)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final deviceId = prefs.getString('device_id');
+        final baseUrl = dotenv.env['BACKEND_URL'];
+
+        if (deviceId != null && baseUrl != null) {
+          final url = Uri.parse('$baseUrl/api/notifications/schedule/todo/');
+          final bodyPayload = jsonEncode({
+            'notification': newTodo.task,
+            'date_time': newTodo.startDate.toUtc().toIso8601String(),
+            'device_id': deviceId,
+          });
+
+          // Unawaited to prevent UI blocking
+          http
+              .post(
+                url,
+                headers: {'Content-Type': 'application/json'},
+                body: bodyPayload,
+              )
+              .timeout(
+                const Duration(seconds: 10),
+              )
+              .then((response) {
+            if (response.statusCode != 200 && response.statusCode != 201) {
+              debugPrint(
+                  'Backend notification schedule failed: ${response.body}');
+            } else {
+              debugPrint(
+                  'Successfully scheduled backend notification for todo');
+            }
+          }).catchError((e) {
+            debugPrint('Error scheduling todo notification: $e');
+          });
+        }
+      } catch (e) {
+        debugPrint('Error preparing todo notification: $e');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('A task todo is added')),
+        );
+      }
+    } else {
+      await DatabaseHelper().updateTodo(newTodo);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Changes saved successfully!')),
+        );
+      }
+    }
 
     if (mounted) {
       Navigator.pop(context, true);
@@ -247,9 +315,11 @@ class _AddTodoPageState extends State<AddTodoPage> {
                 const SizedBox(height: 24),
 
                 // 'Add Your Task' Label
-                const Text(
-                  'Add Your Task',
-                  style: TextStyle(
+                Text(
+                  widget.todoToEdit == null
+                      ? 'Add Your Task'
+                      : 'Edit Your Task',
+                  style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
                       color: Color(0xFF3B4863)),
@@ -376,8 +446,9 @@ class _AddTodoPageState extends State<AddTodoPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 12),
                     ),
-                    child: const Text('Add Task',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: Text(
+                        widget.todoToEdit == null ? 'Add Task' : 'Update Task',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
                 const SizedBox(height: 24),

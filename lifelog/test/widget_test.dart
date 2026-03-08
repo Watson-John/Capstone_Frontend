@@ -4,8 +4,8 @@ import 'package:lifelog/app.dart';
 
 void main() {
   testWidgets('Onboarding page renders', (WidgetTester tester) async {
-    await tester.pumpWidget(const LifelogApp());
+    await tester.pumpWidget(const LifelogApp(initialRoute: '/onboarding'));
 
-    expect(find.text('Onboarding Page'), findsOneWidget);
+    expect(find.text('What should we call you by?'), findsOneWidget);
   });
 }

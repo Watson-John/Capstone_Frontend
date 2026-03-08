@@ -7,4 +7,5 @@ class AppRoutes {
   static const todoList = '/todo-list';
   static const settings = '/settings';
   static const addTodo = '/add-todo';
+  static const notifications = '/notifications';
 }

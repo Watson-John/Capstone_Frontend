@@ -7,14 +7,17 @@ import 'core/theme/app_theme.dart';
 import 'features/onboarding/presentation/onboarding_page.dart';
 import 'features/settings/presentation/settings_page.dart';
 import 'features/todo_list/presentation/add_todo_page.dart';
+import 'features/notifications_reminders/presentation/notifications_page.dart';
 
 class LifelogApp extends StatelessWidget {
   const LifelogApp({
     super.key,
     this.themeConfig = AppThemeConfig.fallback,
+    required this.initialRoute,
   });
 
   final AppThemeConfig themeConfig;
+  final String initialRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +35,7 @@ class LifelogApp extends StatelessWidget {
             platformDynamicScheme: darkDynamic,
           ),
           themeMode: themeConfig.themeMode,
-          initialRoute: AppRoutes.onboarding,
+          initialRoute: initialRoute,
           routes: {
             AppRoutes.onboarding: (context) => const OnboardingPage(),
             AppRoutes.dashboard: (context) => const MainShell(initialIndex: 2),
@@ -44,6 +47,7 @@ class LifelogApp extends StatelessWidget {
             AppRoutes.todoList: (context) => const MainShell(initialIndex: 0),
             AppRoutes.settings: (context) => const SettingsPage(),
             AppRoutes.addTodo: (context) => const AddTodoPage(),
+            AppRoutes.notifications: (context) => const NotificationsPage(),
           },
         );
       },

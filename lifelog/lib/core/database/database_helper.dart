@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../../features/todo_list/domain/models/todo_model.dart';
+import '../../features/notifications_reminders/domain/models/in_app_notification.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -21,8 +22,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Incremented version for new table
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -37,7 +39,33 @@ class DatabaseHelper {
         imagePath TEXT
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE notifications(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        isRead INTEGER NOT NULL
+      )
+    ''');
   }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE notifications(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          timestamp TEXT NOT NULL,
+          isRead INTEGER NOT NULL
+        )
+      ''');
+    }
+  }
+
+  // --- Todos Operations ---
 
   Future<int> insertTodo(Todo todo) async {
     final db = await database;
@@ -74,5 +102,44 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  // --- Notifications Operations ---
+
+  Future<int> insertNotification(InAppNotification notification) async {
+    final db = await database;
+    return await db.insert(
+      'notifications',
+      notification.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<InAppNotification>> getNotifications() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('notifications',
+        orderBy: 'timestamp DESC' // Newest first
+        );
+
+    return List.generate(maps.length, (i) {
+      return InAppNotification.fromMap(maps[i]);
+    });
+  }
+
+  Future<void> markAllAsRead() async {
+    final db = await database;
+    await db.update(
+      'notifications',
+      {'isRead': 1},
+      where: 'isRead = ?',
+      whereArgs: [0],
+    );
+  }
+
+  Future<int> getUnreadCount() async {
+    final db = await database;
+    final count = Sqflite.firstIntValue(await db
+        .rawQuery('SELECT COUNT(*) FROM notifications WHERE isRead = 0'));
+    return count ?? 0;
   }
 }
