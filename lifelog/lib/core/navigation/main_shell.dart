@@ -5,6 +5,7 @@ import '../../features/expense_tracker/presentation/expense_tracker_page.dart';
 import '../../features/gratitude_journal/presentation/gratitude_journal_page.dart';
 import '../../features/mood_logger/presentation/mood_logger_page.dart';
 import '../../features/todo_list/presentation/todo_list_page.dart';
+import '../database/database_helper.dart';
 import '../routes/app_routes.dart';
 
 class MainShell extends StatefulWidget {
@@ -18,6 +19,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   late int _currentIndex;
+  int _unreadCount = 0;
 
   static const _destinations = <NavigationDestination>[
     NavigationDestination(
@@ -59,6 +61,16 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _refreshUnreadCount();
+  }
+
+  Future<void> _refreshUnreadCount() async {
+    final count = await DatabaseHelper().getUnreadCount();
+    if (mounted) {
+      setState(() {
+        _unreadCount = count;
+      });
+    }
   }
 
   @override
@@ -96,10 +108,46 @@ class _MainShellState extends State<MainShell> {
           ],
         ),
         actions: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none,
+                    size: 32, color: Color(0xFF3B4863)),
+                onPressed: () async {
+                  await Navigator.of(context)
+                      .pushNamed(AppRoutes.notifications);
+                  _refreshUnreadCount();
+                },
+                tooltip: 'Notifications',
+              ),
+              if (_unreadCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      _unreadCount > 9 ? '9+' : _unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.menu, size: 32, color: Color(0xFF3B4863)),
-            onPressed: () =>
-                Navigator.of(context).pushNamed(AppRoutes.settings),
+            onPressed: () {
+              Navigator.of(context).pushNamed(AppRoutes.settings);
+            },
             tooltip: 'Settings / Menu',
           ),
           const SizedBox(width: 8), // Padding on right

@@ -4,6 +4,7 @@ import 'package:syncfusion_flutter_calendar/calendar.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
 import '../domain/models/todo_model.dart';
+import 'add_todo_page.dart';
 
 class TodoListPage extends StatefulWidget {
   const TodoListPage({super.key});
@@ -122,8 +123,6 @@ class _TodoListPageState extends State<TodoListPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 16),
-                _buildGreeting(),
-                const SizedBox(height: 32),
                 _buildMainCard(context),
                 const SizedBox(height: 24),
               ],
@@ -131,30 +130,6 @@ class _TodoListPageState extends State<TodoListPage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildGreeting() {
-    return const Column(
-      children: [
-        Text(
-          'Hello Nabin!',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFF2B3A55),
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          'Explore your activity.',
-          style: TextStyle(
-            fontSize: 18,
-            color: Color(0xFF2B3A55),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
     );
   }
 
@@ -598,13 +573,80 @@ class _TodoListPageState extends State<TodoListPage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        todo.task,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: Color(0xFF2B3A55),
-                                        ),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              todo.task,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                                color: Color(0xFF2B3A55),
+                                              ),
+                                            ),
+                                          ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: const Icon(Icons.edit,
+                                                    color: Color(0xFF3B4863),
+                                                    size: 20),
+                                                padding: EdgeInsets.zero,
+                                                constraints:
+                                                    const BoxConstraints(),
+                                                onPressed: () async {
+                                                  final updated =
+                                                      await Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) =>
+                                                          AddTodoPage(
+                                                              todoToEdit: todo),
+                                                    ),
+                                                  );
+                                                  if (updated == true) {
+                                                    if (sheetContext.mounted) {
+                                                      Navigator.pop(
+                                                          sheetContext); // Close overlay after saving
+                                                    }
+                                                    _loadTodos(); // Refresh list
+                                                  }
+                                                },
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(Icons.delete,
+                                                    color: Colors.red,
+                                                    size: 20),
+                                                padding: EdgeInsets.zero,
+                                                constraints:
+                                                    const BoxConstraints(),
+                                                onPressed: () async {
+                                                  if (todo.id != null) {
+                                                    await DatabaseHelper()
+                                                        .deleteTodo(todo.id!);
+                                                    if (sheetContext.mounted) {
+                                                      Navigator.pop(
+                                                          sheetContext);
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                            content: Text(
+                                                                'Task deleted successfully!')),
+                                                      );
+                                                    }
+                                                    _loadTodos();
+                                                  }
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 6),
                                       Row(
@@ -690,6 +732,16 @@ class _TodoListPageState extends State<TodoListPage> {
                                                     await DatabaseHelper()
                                                         .updateTodo(
                                                             updatedTodo);
+
+                                                    if (context.mounted) {
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                            content: Text(
+                                                                'Changes saved successfully!')),
+                                                      );
+                                                    }
 
                                                     // Also update local list so modal shows new value
                                                     setModalState(() {
