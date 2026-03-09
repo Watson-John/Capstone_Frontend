@@ -4,6 +4,7 @@ import 'package:path/path.dart';
 import '../../features/expense_tracker/domain/models/expense.dart';
 import '../../features/todo_list/domain/models/todo_model.dart';
 import '../../features/notifications_reminders/domain/models/in_app_notification.dart';
+import '../../features/mood_logger/domain/models/mood_log.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -22,7 +23,7 @@ class DatabaseHelper {
     final path = join(dbPath, 'lifelog.db');
     return openDatabase(
       path,
-      version: 2, // Incremented version for new table
+      version: 4, // Incremented version for 'emoji' column
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -60,6 +61,16 @@ class DatabaseHelper {
         isRead INTEGER NOT NULL
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE moodLog(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        description TEXT NOT NULL,
+        mood TEXT NOT NULL,
+        dateTime TEXT NOT NULL,
+        emoji TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<int> insertExpense(Expense expense) async {
@@ -88,6 +99,24 @@ class DatabaseHelper {
           timestamp TEXT NOT NULL,
           isRead INTEGER NOT NULL
         )
+      ''');
+    }
+
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE moodLog(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          description TEXT NOT NULL,
+          mood TEXT NOT NULL,
+          dateTime TEXT NOT NULL,
+          emoji TEXT NOT NULL
+        )
+      ''');
+    }
+
+    if (oldVersion < 4) {
+      await db.execute('''
+        ALTER TABLE moodLog ADD COLUMN emoji TEXT DEFAULT '😎'
       ''');
     }
   }
@@ -167,5 +196,55 @@ class DatabaseHelper {
     final count = Sqflite.firstIntValue(await db
         .rawQuery('SELECT COUNT(*) FROM notifications WHERE isRead = 0'));
     return count ?? 0;
+  }
+
+  // --- Mood Logs Operations ---
+
+  Future<int> insertMoodLog(MoodLog moodLog) async {
+    final db = await database;
+    return await db.insert(
+      'moodLog',
+      moodLog.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<MoodLog>> getMoodLogs() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'moodLog',
+      orderBy: 'dateTime DESC', // Newest first
+    );
+
+    return List.generate(maps.length, (i) {
+      return MoodLog.fromMap(maps[i]);
+    });
+  }
+
+  Future<List<String>> getUniqueMoodTags() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db
+        .rawQuery('SELECT DISTINCT mood FROM moodLog ORDER BY mood ASC');
+
+    return maps.map((entry) => entry['mood'] as String).toList();
+  }
+
+  Future<int> updateMoodLog(MoodLog moodLog) async {
+    final db = await database;
+    return await db.update(
+      'moodLog',
+      moodLog.toMap(),
+      where: 'id = ?',
+      whereArgs: [moodLog.id],
+    );
+  }
+
+  Future<int> deleteMoodLog(int id) async {
+    final db = await database;
+    return await db.delete(
+      'moodLog',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }
