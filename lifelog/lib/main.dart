@@ -15,9 +15,7 @@ import 'features/notifications_reminders/domain/models/in_app_notification.dart'
 // Handling background messages
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   if (message.notification != null) {
     final inAppNotification = InAppNotification(
@@ -43,7 +41,7 @@ void main() async {
   // Note: For cross-platform support, you should run `flutterfire configure`
   // and uncomment the `options: DefaultFirebaseOptions.currentPlatform` lines.
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
     // Set up background messaging handler
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
