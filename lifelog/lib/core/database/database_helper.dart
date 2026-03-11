@@ -4,6 +4,7 @@ import '../../features/todo_list/domain/models/todo_model.dart';
 import '../../features/notifications_reminders/domain/models/in_app_notification.dart';
 import '../../features/mood_logger/domain/models/mood_log.dart';
 import '../../features/expense_tracker/domain/models/expense.dart';
+import '../../features/expense_tracker/domain/models/budget.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -24,7 +25,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -73,6 +74,15 @@ class DatabaseHelper {
         created_at TEXT NOT NULL
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE budgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        limit_amount REAL NOT NULL,
+        period TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -115,6 +125,17 @@ class DatabaseHelper {
           vendor TEXT NOT NULL,
           category TEXT NOT NULL,
           veryfi_document_id TEXT,
+          created_at TEXT NOT NULL
+        )
+      ''');
+    }
+
+    if (oldVersion < 6) {
+      await db.execute('''
+        CREATE TABLE budgets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          limit_amount REAL NOT NULL,
+          period TEXT NOT NULL,
           created_at TEXT NOT NULL
         )
       ''');
@@ -265,5 +286,21 @@ class DatabaseHelper {
   Future<int> deleteExpense(int id) async {
     final db = await database;
     return db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- Budget Operations ---
+
+  Future<Budget?> getBudget() async {
+    final db = await database;
+    final maps = await db.query('budgets', limit: 1, orderBy: 'id DESC');
+    if (maps.isEmpty) return null;
+    return Budget.fromMap(maps.first);
+  }
+
+  Future<int> saveBudget(Budget budget) async {
+    final db = await database;
+    // Only one active budget — replace any existing row.
+    await db.delete('budgets');
+    return db.insert('budgets', budget.toMap());
   }
 }

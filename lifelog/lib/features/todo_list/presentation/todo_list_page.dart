@@ -25,16 +25,16 @@ class _TodoListPageState extends State<TodoListPage> {
     _calendarController.displayDate = _selectedDate;
     _loadTodos();
 
-    // Automatically scroll horizontal day list to selected day
+    // Scroll so the current date is the first visible day (left-aligned)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_dateScrollController.hasClients) {
-        // Approximate width of item + margin (36 + 8) = 44. Center roughly.
-        final targetScroll = (_selectedDate.day - 1) * 44.0;
-        final screenWidth = MediaQuery.of(context).size.width;
-        final centeredScroll = (targetScroll - (screenWidth / 2) + 22)
-            .clamp(0.0, _dateScrollController.position.maxScrollExtent);
-
-        _dateScrollController.jumpTo(centeredScroll);
+        // Each item: 40px circle + 4px left margin + 4px right margin = 48px
+        const double itemWidth = 48.0;
+        final targetScroll = (_selectedDate.day - 1) * itemWidth;
+        _dateScrollController.jumpTo(
+          targetScroll.clamp(
+              0.0, _dateScrollController.position.maxScrollExtent),
+        );
       }
     });
   }
@@ -117,13 +117,16 @@ class _TodoListPageState extends State<TodoListPage> {
       backgroundColor: const Color(0xFFF3EDCE), // Beige background
       body: SafeArea(
         child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 16),
-                _buildMainCard(context),
+                _buildScheduleCard(context),
+                const SizedBox(height: 16),
+                _buildStatsCard(),
                 const SizedBox(height: 24),
               ],
             ),
@@ -133,14 +136,14 @@ class _TodoListPageState extends State<TodoListPage> {
     );
   }
 
-  Widget _buildMainCard(BuildContext context) {
+  Widget _buildScheduleCard(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFFDFDFD),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -154,10 +157,26 @@ class _TodoListPageState extends State<TodoListPage> {
           const Divider(height: 1, thickness: 1.5, color: Color(0xFFDCDFD8)),
           const SizedBox(height: 24),
           _buildScheduleView(context),
-          const SizedBox(height: 24),
-          _buildStatsGrid(),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatsCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDFDFD),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20.0),
+      child: _buildStatsGrid(),
     );
   }
 
@@ -220,7 +239,7 @@ class _TodoListPageState extends State<TodoListPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -308,7 +327,7 @@ class _TodoListPageState extends State<TodoListPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: appointment.color.withOpacity(0.15),
+                    color: appointment.color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: appointment.color, width: 1.5),
                   ),
@@ -330,7 +349,7 @@ class _TodoListPageState extends State<TodoListPage> {
                         child: Text(
                           '${_formatTime(appointment.startTime)} - ${_formatTime(appointment.endTime)}',
                           style: TextStyle(
-                            color: appointment.color.withOpacity(0.8),
+                            color: appointment.color.withValues(alpha: 0.8),
                             fontSize: 8,
                             fontWeight: FontWeight.w600,
                           ),
@@ -378,12 +397,24 @@ class _TodoListPageState extends State<TodoListPage> {
 
   Widget _buildDateSelector() {
     final daysCount = _daysInMonth;
-    return SingleChildScrollView(
-      controller: _dateScrollController,
-      scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none, // Allow shadows to be visible while scrolling
-      child: Row(
-        mainAxisSize: MainAxisSize.min, // Hug content
+    return ShaderMask(
+      shaderCallback: (bounds) => const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          Colors.transparent,
+          Colors.white,
+          Colors.white,
+          Colors.transparent,
+        ],
+        stops: [0.0, 0.06, 0.88, 1.0],
+      ).createShader(bounds),
+      blendMode: BlendMode.dstIn,
+      child: SingleChildScrollView(
+        controller: _dateScrollController,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Row(
         children: List.generate(daysCount, (index) {
           final day = index + 1;
           final isSelected = day == _selectedDate.day;
@@ -391,14 +422,10 @@ class _TodoListPageState extends State<TodoListPage> {
             onTap: () => _onDateSelected(
                 DateTime(_selectedDate.year, _selectedDate.month, day)),
             child: Container(
-              width: 36,
-              height: 36,
-              margin: EdgeInsets.only(
-                right: 8,
-                left: index == 0
-                    ? 0
-                    : 4, // Add slight left margin for better spacing
-              ),
+              width: 40,
+              height: 40,
+              // Uniform 4px on each side → 48px total per item
+              margin: const EdgeInsets.symmetric(horizontal: 4),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -406,14 +433,14 @@ class _TodoListPageState extends State<TodoListPage> {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF3B4863).withOpacity(0.4),
+                          color: const Color(0xFF3B4863).withValues(alpha: 0.4),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         )
                       ]
                     : [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         )
@@ -424,12 +451,13 @@ class _TodoListPageState extends State<TodoListPage> {
                 style: TextStyle(
                   color: isSelected ? Colors.white : const Color(0xFF3B4863),
                   fontWeight: FontWeight.w800,
-                  fontSize: 16,
+                  fontSize: 15,
                 ),
               ),
             ),
           );
         }),
+        ),
       ),
     );
   }
@@ -485,7 +513,7 @@ class _TodoListPageState extends State<TodoListPage> {
           boxShadow: bgColor == Colors.white
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
