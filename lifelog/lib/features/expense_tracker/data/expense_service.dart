@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../domain/models/scan_result.dart';
 
@@ -13,6 +14,20 @@ class ExpenseScanException implements Exception {
 
   @override
   String toString() => message;
+}
+
+MediaType _mimeTypeFor(String path) {
+  final ext = path.split('.').last.toLowerCase();
+  const types = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'webp': 'image/webp',
+    'gif': 'image/gif',
+    'heic': 'image/heic',
+    'heif': 'image/heif',
+  };
+  return MediaType.parse(types[ext] ?? 'image/jpeg');
 }
 
 class ExpenseService {
@@ -25,7 +40,15 @@ class ExpenseService {
 
     final request = http.MultipartRequest('POST', url)
       ..headers['X-Prototype-App-Key'] = _appKey
-      ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+      ..files.add(await http.MultipartFile.fromPath(
+          'file',
+          imageFile.path,
+          filename: imageFile.path
+              .split('/')
+              .last
+              .replaceFirst(RegExp(r'\.jpg$', caseSensitive: false), '.jpeg'),
+          contentType: _mimeTypeFor(imageFile.path),
+        ));
 
     late http.StreamedResponse streamed;
     try {
