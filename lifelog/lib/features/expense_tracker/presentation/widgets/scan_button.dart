@@ -1,8 +1,21 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+const int _minBytes = 250;
+const int _maxBytes = 20 * 1024 * 1024; // 20 MB
+
 class ScanButton extends StatefulWidget {
-  const ScanButton({super.key});
+  const ScanButton({
+    super.key,
+    this.onImageCaptured,
+  });
+
+  /// Called with the validated, compressed image file when the user
+  /// successfully selects a receipt. If null, the button shows a placeholder
+  /// snackbar (useful for development before wiring up the scan flow).
+  final Future<void> Function(XFile image)? onImageCaptured;
 
   @override
   State<ScanButton> createState() => _ScanButtonState();
@@ -12,21 +25,59 @@ class _ScanButtonState extends State<ScanButton> {
   bool _isPressed = false;
   final ImagePicker _imagePicker = ImagePicker();
 
+  /// Pick and compress an image from [source].
+  /// Returns null if the user cancelled or the image fails validation.
+  Future<XFile?> _pickAndCompress(ImageSource source) async {
+    // First pass: 85% quality, max 2048px.
+    XFile? image = await _imagePicker.pickImage(
+      source: source,
+      preferredCameraDevice: CameraDevice.rear,
+      imageQuality: 85,
+      maxWidth: 2048,
+      maxHeight: 2048,
+    );
+
+    if (image == null) return null;
+
+    // If the compressed result is still over 20 MB, try a harder compression.
+    int size = await File(image.path).length();
+    if (size > _maxBytes) {
+      final recompressed = await _imagePicker.pickImage(
+        source: source,
+        preferredCameraDevice: CameraDevice.rear,
+        imageQuality: 60,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (recompressed != null) {
+        image = recompressed;
+        size = await File(image.path).length();
+      }
+    }
+
+    if (!mounted) return null;
+
+    if (size < _minBytes) {
+      _showMessage('Image is too small to process.');
+      return null;
+    }
+    if (size > _maxBytes) {
+      _showMessage('Image is too large even after compression. Try a smaller photo.');
+      return null;
+    }
+
+    return image;
+  }
+
   Future<void> _takePhotoWithSystemCamera() async {
     try {
-      final image = await _imagePicker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
-      );
+      final image = await _pickAndCompress(ImageSource.camera);
       if (!mounted) return;
-
       if (image == null) {
         _showMessage('Photo capture cancelled.');
         return;
       }
-
-      debugPrint('Captured image path: ${image.path}');
-      _showMessage('Photo captured successfully.');
+      await _handleImage(image);
     } catch (error) {
       debugPrint('Unexpected error while opening system camera: $error');
       if (!mounted) return;
@@ -36,20 +87,26 @@ class _ScanButtonState extends State<ScanButton> {
 
   Future<void> _chooseFromDevice() async {
     try {
-      final image = await _imagePicker.pickImage(source: ImageSource.gallery);
+      final image = await _pickAndCompress(ImageSource.gallery);
       if (!mounted) return;
-
       if (image == null) {
         _showMessage('No image selected.');
         return;
       }
-
-      debugPrint('Selected image path: ${image.path}');
-      _showMessage('Image selected successfully.');
+      await _handleImage(image);
     } catch (error) {
       debugPrint('Unexpected error while opening gallery: $error');
       if (!mounted) return;
       _showMessage('Unable to open device gallery right now.');
+    }
+  }
+
+  Future<void> _handleImage(XFile image) async {
+    if (widget.onImageCaptured != null) {
+      await widget.onImageCaptured!(image);
+    } else {
+      debugPrint('ScanButton: image selected at ${image.path} (no handler wired)');
+      _showMessage('Image selected successfully.');
     }
   }
 
@@ -138,7 +195,7 @@ class _ScanButtonState extends State<ScanButton> {
 
     return Semantics(
       button: true,
-      label: 'Scan Button',
+      label: 'Scan Receipt',
       child: Material(
         color: Colors.transparent,
         child: InkWell(

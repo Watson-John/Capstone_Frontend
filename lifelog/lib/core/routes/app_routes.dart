@@ -8,4 +8,5 @@ class AppRoutes {
   static const settings = '/settings';
   static const addTodo = '/add-todo';
   static const notifications = '/notifications';
+  static const addExpense = '/add-expense';
 }

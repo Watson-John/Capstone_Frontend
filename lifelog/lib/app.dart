@@ -4,6 +4,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'core/navigation/main_shell.dart';
 import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
+import 'features/expense_tracker/presentation/add_expense_page.dart';
 import 'features/onboarding/presentation/onboarding_page.dart';
 import 'features/settings/presentation/settings_page.dart';
 import 'features/todo_list/presentation/add_todo_page.dart';
@@ -48,6 +49,7 @@ class LifelogApp extends StatelessWidget {
             AppRoutes.settings: (context) => const SettingsPage(),
             AppRoutes.addTodo: (context) => const AddTodoPage(),
             AppRoutes.notifications: (context) => const NotificationsPage(),
+            AppRoutes.addExpense: (context) => const AddExpensePage(),
           },
         );
       },
