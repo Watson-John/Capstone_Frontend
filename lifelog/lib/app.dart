@@ -4,6 +4,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'core/navigation/main_shell.dart';
 import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
+import 'features/expense_tracker/presentation/add_expense_page.dart';
 import 'features/onboarding/presentation/onboarding_page.dart';
 import 'features/settings/presentation/settings_page.dart';
 
@@ -40,6 +41,7 @@ class LifelogApp extends StatelessWidget {
             AppRoutes.gratitudeJournal: (context) => const MainShell(initialIndex: 4),
             AppRoutes.todoList: (context) => const MainShell(initialIndex: 0),
             AppRoutes.settings: (context) => const SettingsPage(),
+            AppRoutes.addExpense: (context) => const AddExpensePage(),
           },
         );
       },
