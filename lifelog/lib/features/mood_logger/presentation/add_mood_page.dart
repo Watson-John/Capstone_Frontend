@@ -157,15 +157,19 @@ class _AddMoodPageState extends State<AddMoodPage> {
       _moodController.clear();
       _emojiController.text = '😎'; // reset
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mood saved successfully!')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mood saved successfully!')),
+        );
+      }
     } else {
       await db.updateMoodLog(newLog);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mood updated successfully!')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mood updated successfully!')),
+        );
+      }
       if (mounted) {
         Navigator.pop(context, true); // Pop out to return true status
         return; // Early return to avoid re-loading history and staying on screen
@@ -177,12 +181,13 @@ class _AddMoodPageState extends State<AddMoodPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF3EDCE), // Theme background
+      backgroundColor: cs.surface,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const BackButton(color: Color(0xFF3B4863)),
+        leading: BackButton(color: cs.onSurface),
         titleSpacing: 0,
         title: Row(
           children: [
@@ -190,34 +195,34 @@ class _AddMoodPageState extends State<AddMoodPage> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surfaceContainer,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blueAccent, width: 2),
+                border: Border.all(color: cs.primary, width: 2),
               ),
               child: const Icon(Icons.volunteer_activism,
                   color: Colors.orange, size: 24),
             ),
             const SizedBox(width: 12),
-            const Text(
+            Text(
               'Lifelog',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: Colors.black87,
+                color: cs.onSurface,
               ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none,
-                size: 32, color: Color(0xFF3B4863)),
+            icon: Icon(Icons.notifications_none,
+                size: 32, color: cs.onSurface),
             onPressed: () =>
                 Navigator.of(context).pushNamed(AppRoutes.notifications),
             tooltip: 'Notifications',
           ),
           IconButton(
-            icon: const Icon(Icons.menu, size: 32, color: Color(0xFF3B4863)),
+            icon: Icon(Icons.menu, size: 32, color: cs.onSurface),
             onPressed: () =>
                 Navigator.of(context).pushNamed(AppRoutes.settings),
             tooltip: 'Settings / Menu',
@@ -230,11 +235,11 @@ class _AddMoodPageState extends State<AddMoodPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: cs.surfaceContainer,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -256,12 +261,12 @@ class _AddMoodPageState extends State<AddMoodPage> {
                                 : _emojiController.text,
                             style: const TextStyle(fontSize: 28)),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'Mood Logger',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF2B3A55),
+                            color: cs.onSurface,
                           ),
                         ),
                       ],
@@ -270,12 +275,12 @@ class _AddMoodPageState extends State<AddMoodPage> {
                       onPressed: _isAnalyzing ? null : _analyzeMood,
                       icon: const Icon(Icons.auto_awesome,
                           size: 16, color: Colors.amber),
-                      label: const Text(
+                      label: Text(
                         'Analyze Mood',
-                        style: TextStyle(color: Colors.white, fontSize: 12),
+                        style: TextStyle(color: cs.onPrimary, fontSize: 12),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3B4863),
+                        backgroundColor: cs.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -288,25 +293,25 @@ class _AddMoodPageState extends State<AddMoodPage> {
                 const SizedBox(height: 16),
 
                 // Emoji picker
-                const Text(
+                Text(
                   'How are you feeling today? (Enter an emoji)',
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF3B4863)),
+                      color: cs.onSurface),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
-                  width: 80, // restrict width to feel like emoji block
+                  width: 80,
                   child: TextField(
                     controller: _emojiController,
                     textAlign: TextAlign.center,
-                    maxLength: 2, // emojis can take up to 2 characters
+                    maxLength: 2,
                     style: const TextStyle(fontSize: 32),
                     decoration: InputDecoration(
                       counterText: "",
                       filled: true,
-                      fillColor: const Color(0xFFF0F0F0),
+                      fillColor: cs.surfaceContainerHighest,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -320,12 +325,12 @@ class _AddMoodPageState extends State<AddMoodPage> {
                 const SizedBox(height: 24),
 
                 // Explain about your mood
-                const Text(
+                Text(
                   'Explain about your mood',
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF3B4863)),
+                      color: cs.onSurface),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -333,14 +338,13 @@ class _AddMoodPageState extends State<AddMoodPage> {
                   maxLines: 3,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor:
-                        const Color(0xFF8692A6), // Grayish-blue from design
+                    fillColor: cs.secondary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
                   ),
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: cs.onSecondary),
                 ),
                 const SizedBox(height: 16),
 
@@ -350,7 +354,7 @@ class _AddMoodPageState extends State<AddMoodPage> {
                   decoration: InputDecoration(
                     hintText: 'Enter a mood tag (e.g., Happy, Sad, Working)',
                     filled: true,
-                    fillColor: const Color(0xFFF0F0F0),
+                    fillColor: cs.surfaceContainerHighest,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -376,12 +380,12 @@ class _AddMoodPageState extends State<AddMoodPage> {
                   ),
                 const SizedBox(height: 16),
 
-                // AI Response Box placeholder
+                // AI Response Box
                 Container(
                   constraints: const BoxConstraints(minHeight: 120),
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD9E2EC),
+                    color: cs.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Stack(
@@ -392,27 +396,27 @@ class _AddMoodPageState extends State<AddMoodPage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 4),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFD9E2EC),
-                            borderRadius: BorderRadius.only(
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer,
+                            borderRadius: const BorderRadius.only(
                               bottomLeft: Radius.circular(8),
                               bottomRight: Radius.circular(8),
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             'AI Response',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF3B4863),
+                              color: cs.onPrimaryContainer,
                             ),
                           ),
                         ),
                       ),
-                      // Fake dashed border visual
+                      // Dashed border visual
                       Positioned.fill(
                         child: CustomPaint(
-                          painter: _DashedRectPainter(),
+                          painter: _DashedRectPainter(color: cs.primary),
                         ),
                       ),
                       Padding(
@@ -420,7 +424,7 @@ class _AddMoodPageState extends State<AddMoodPage> {
                             top: 24.0, left: 16.0, right: 16.0, bottom: 16.0),
                         child: Center(
                           child: _isAnalyzing
-                              ? const Column(
+                              ? Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     SizedBox(
@@ -428,14 +432,15 @@ class _AddMoodPageState extends State<AddMoodPage> {
                                       height: 24,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Color(0xFF3B4863),
+                                        color: cs.primary,
                                       ),
                                     ),
-                                    SizedBox(height: 8),
+                                    const SizedBox(height: 8),
                                     Text(
                                       'loading',
                                       style: TextStyle(
-                                          color: Colors.black54, fontSize: 13),
+                                          color: cs.onPrimaryContainer,
+                                          fontSize: 13),
                                     ),
                                   ],
                                 )
@@ -443,8 +448,8 @@ class _AddMoodPageState extends State<AddMoodPage> {
                                   _aiResponse.isEmpty
                                       ? 'AI insights will appear here...'
                                       : _aiResponse,
-                                  style: const TextStyle(
-                                      color: Colors.black87,
+                                  style: TextStyle(
+                                      color: cs.onPrimaryContainer,
                                       fontSize: 14,
                                       height: 1.4),
                                   textAlign: TextAlign.justify,
@@ -462,27 +467,28 @@ class _AddMoodPageState extends State<AddMoodPage> {
                   child: ElevatedButton(
                     onPressed: _saveMood,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3B4863),
+                      backgroundColor: cs.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 32, vertical: 12),
                     ),
-                    child: const Text('Save',
+                    child: Text('Save',
                         style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
+                            color: cs.onPrimary,
+                            fontWeight: FontWeight.bold)),
                   ),
                 ),
                 const SizedBox(height: 32),
 
                 // Mood History Header
-                const Text(
+                Text(
                   'Mood History',
                   style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF2B3A55)),
+                      color: cs.onSurface),
                 ),
                 const SizedBox(height: 12),
 
@@ -490,37 +496,34 @@ class _AddMoodPageState extends State<AddMoodPage> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF8692A6),
+                    color: cs.secondary,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
                     children: [
-                      const Row(
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('Created on',
                               style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white)),
+                                  color: cs.onSecondary)),
                           Text('Mood',
                               style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white)),
+                                  color: cs.onSecondary)),
                         ],
                       ),
                       const SizedBox(height: 12),
                       _isLoading
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                  color: Colors.white))
+                          ? CircularProgressIndicator(color: cs.onSecondary)
                           : _history.isEmpty
-                              ? const Center(
-                                  child: Text('No history.',
-                                      style: TextStyle(color: Colors.white70)))
+                              ? Text('No history.',
+                                  style: TextStyle(
+                                      color: cs.onSecondary.withValues(alpha: 0.7)))
                               : ConstrainedBox(
                                   constraints: const BoxConstraints(
-                                    maxHeight:
-                                        250, // Keep list nicely sized but scrollable
+                                    maxHeight: 250,
                                   ),
                                   child: ListView.builder(
                                     shrinkWrap: true,
@@ -538,12 +541,13 @@ class _AddMoodPageState extends State<AddMoodPage> {
                                               MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(date,
-                                                style: const TextStyle(
-                                                    color: Colors.white70,
+                                                style: TextStyle(
+                                                    color: cs.onSecondary
+                                                        .withValues(alpha: 0.7),
                                                     fontSize: 12)),
                                             Text('${log.emoji} ${log.mood}',
-                                                style: const TextStyle(
-                                                    color: Colors.white,
+                                                style: TextStyle(
+                                                    color: cs.onSecondary,
                                                     fontSize: 13)),
                                           ],
                                         ),
@@ -565,10 +569,14 @@ class _AddMoodPageState extends State<AddMoodPage> {
 
 // Painter for dashed border
 class _DashedRectPainter extends CustomPainter {
+  final Color color;
+
+  const _DashedRectPainter({required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF3B4863)
+      ..color = color
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
@@ -604,5 +612,6 @@ class _DashedRectPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DashedRectPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

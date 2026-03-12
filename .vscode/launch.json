@@ -1,29 +1,19 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "lifelog",
-            "cwd": "lifelog",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main.dart"
-        },
-        {
-            "name": "lifelog (profile mode)",
-            "cwd": "lifelog",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "profile"
-        },
-        {
-            "name": "lifelog (release mode)",
-            "cwd": "lifelog",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "lifelog (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "${workspaceFolder}/lifelog/lib/main.dart",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "lifelog (profile)",
+      "request": "launch",
+      "type": "dart",
+      "program": "${workspaceFolder}/lifelog/lib/main.dart",
+      "flutterMode": "profile"
+    }
+  ]
 }

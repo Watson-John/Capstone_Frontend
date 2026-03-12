@@ -43,18 +43,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3EDCE), // Match global background
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: const Text(
           'Notifications',
           style: TextStyle(
             fontWeight: FontWeight.w900,
-            color: Color(0xFF2B3A55),
+            color: Color(0xFF1C1C1C),
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF2B3A55)),
+        iconTheme: const IconThemeData(color: Color(0xFF1C1C1C)),
       ),
       body: FutureBuilder<List<InAppNotification>>(
         future: _notificationsFuture,
@@ -81,7 +81,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF5A6A85),
+                  color: Color(0xFF4A4A4A),
                 ),
               ),
             );
@@ -100,7 +100,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -111,7 +111,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   children: [
                     Icon(
                       Icons.notifications_active,
-                      color: n.isRead ? Colors.grey : Colors.blueAccent,
+                      color: n.isRead ? const Color(0xFFBDBDBD) : const Color(0xFF002D62),
                       size: 28,
                     ),
                     const SizedBox(width: 16),
@@ -130,7 +130,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                     fontWeight: n.isRead
                                         ? FontWeight.w600
                                         : FontWeight.w800,
-                                    color: const Color(0xFF2B3A55),
+                                    color: const Color(0xFF1C1C1C),
                                   ),
                                 ),
                               ),
@@ -150,7 +150,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                             n.body,
                             style: const TextStyle(
                               fontSize: 14,
-                              color: Color(0xFF5A6A85),
+                              color: Color(0xFF4A4A4A),
                               height: 1.4,
                             ),
                           ),
@@ -159,7 +159,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                             _formatDate(n.timestamp),
                             style: const TextStyle(
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: Color(0xFF6B6B6B),
                             ),
                           ),
                         ],
