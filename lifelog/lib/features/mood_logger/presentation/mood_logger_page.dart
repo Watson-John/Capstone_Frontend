@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/database/database_helper.dart';
+import '../../../core/widgets/app_fab.dart';
+import '../../../core/widgets/app_page_header.dart';
 import '../domain/models/mood_log.dart';
 import 'add_mood_page.dart';
 import 'widgets/half_donut_chart.dart';
@@ -15,7 +15,6 @@ class MoodLoggerPage extends StatefulWidget {
 }
 
 class _MoodLoggerPageState extends State<MoodLoggerPage> {
-  String _userName = '';
   List<MoodLog> _moodLogs = [];
   bool _isLoading = true;
 
@@ -26,15 +25,9 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
   }
 
   Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final name = prefs.getString('userName') ?? 'User';
-
-    final dbHelper = DatabaseHelper();
-    final logs = await dbHelper.getMoodLogs();
-
+    final logs = await DatabaseHelper().getMoodLogs();
     if (mounted) {
       setState(() {
-        _userName = name;
         _moodLogs = logs;
         _isLoading = false;
       });
@@ -46,214 +39,105 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
       context,
       MaterialPageRoute(builder: (context) => const AddMoodPage()),
     );
-    // Refresh after returning
     _loadData();
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF3EDCE), // Theme background
+      backgroundColor: cs.surface,
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0, vertical: 24.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Header text
-                    Text(
-                      'Hello $_userName!',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF2B3A55),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Explore your activity.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF3B4863),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Centered Box Container mimicking "ThemedPageContent" style
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Top bar inside the container
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const Text(
-                                    '🥹', // Happy emoji
-                                    style: TextStyle(fontSize: 28),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Mood Logger',
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFF2B3A55),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              ElevatedButton(
-                                onPressed: _navigateToAddMood,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF3B4863),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Add Mood',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          const Divider(),
-                          const SizedBox(height: 16),
-
-                          // My Mood Report Box
-                          Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF3F6F8),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  'My Mood Report',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF3B4863),
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildMoodReportList(),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // My Mood Graph Box
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.03),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  'My Mood Graph',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF3B4863),
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                                const SizedBox(height: 32),
-                                _buildPieChart(),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // Keep Going Box
-                          Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF3F6F8),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            padding: const EdgeInsets.all(24),
-                            child: const Column(
-                              children: [
-                                Text(
-                                  'Keep Going',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF3B4863),
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                                SizedBox(height: 12),
-                                Text(
-                                  'Finish what you start — your\nfuture self is watching. 🌿',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    const AppPageHeader(title: 'Mood Logger'),
+                    const SizedBox(height: 16),
+                    _buildMoodReportCard(cs),
+                    const SizedBox(height: 16),
+                    _buildMoodGraphCard(cs),
+                    const SizedBox(height: 16),
+                    _buildKeepGoingCard(cs),
+                    const SizedBox(height: 96), // FAB clearance
                   ],
                 ),
               ),
       ),
+      floatingActionButton: AppFab(onPressed: _navigateToAddMood),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
-  Widget _buildMoodReportList() {
+  // ── Card shell ─────────────────────────────────────────────────────────────
+
+  Widget _card({
+    required ColorScheme cs,
+    required String title,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
+  // ── Mood report card ───────────────────────────────────────────────────────
+
+  Widget _buildMoodReportCard(ColorScheme cs) {
+    return _card(
+      cs: cs,
+      title: 'My Mood Report',
+      child: _buildMoodReportList(cs),
+    );
+  }
+
+  Widget _buildMoodReportList(ColorScheme cs) {
     if (_moodLogs.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Text('No data yet.'),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.sentiment_neutral_outlined,
+                  size: 40, color: cs.outlineVariant),
+              const SizedBox(height: 8),
+              Text(
+                'No moods logged yet.',
+                style: TextStyle(color: cs.outline, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -265,69 +149,61 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
         itemCount: _moodLogs.length,
         itemBuilder: (context, index) {
           final log = _moodLogs[index];
-          DateTime dt = DateTime.parse(log.dateTime);
-          String formattedDate = DateFormat('MM/dd/yyyy').format(dt);
+          final dt = DateTime.parse(log.dateTime);
+          final formattedDate =
+              '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}/${dt.year}';
 
           return InkWell(
             onTap: () => _showMoodDetailsBottomSheet(context, log),
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  )
-                ],
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   CircleAvatar(
-                    backgroundColor: const Color(0xFFF0F0F0),
+                    backgroundColor: cs.surfaceContainer,
                     radius: 20,
-                    child:
-                        Text(log.emoji, style: const TextStyle(fontSize: 20)),
+                    child: Text(log.emoji,
+                        style: const TextStyle(fontSize: 20)),
                   ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            log.mood,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF3B4863),
-                            ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          log.mood,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            log.description,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          log.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   Text(
                     formattedDate,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF3B4863),
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -339,45 +215,101 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
     );
   }
 
+  // ── Mood graph card ────────────────────────────────────────────────────────
+
+  Widget _buildMoodGraphCard(ColorScheme cs) {
+    return _card(
+      cs: cs,
+      title: 'Mood Distribution',
+      child: _buildPieChart(cs),
+    );
+  }
+
+  Widget _buildPieChart(ColorScheme cs) {
+    if (_moodLogs.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            'Log some moods to see your chart.',
+            style: TextStyle(color: cs.outline, fontSize: 13),
+          ),
+        ),
+      );
+    }
+
+    final Map<String, int> moodCounts = {};
+    for (var log in _moodLogs) {
+      moodCounts[log.mood] = (moodCounts[log.mood] ?? 0) + 1;
+    }
+
+    return HalfDonutChart(moodCounts: moodCounts);
+  }
+
+  // ── Keep going card ────────────────────────────────────────────────────────
+
+  Widget _buildKeepGoingCard(ColorScheme cs) {
+    return _card(
+      cs: cs,
+      title: 'Keep Going',
+      child: Text(
+        'Finish what you start — your future self is watching.',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 14,
+          color: cs.onSurface,
+          height: 1.5,
+        ),
+      ),
+    );
+  }
+
+  // ── Bottom sheet ───────────────────────────────────────────────────────────
+
   void _showMoodDetailsBottomSheet(BuildContext context, MoodLog log) {
-    DateTime dt = DateTime.parse(log.dateTime);
-    String formattedDate = DateFormat('MM/dd/yyyy').format(dt);
-    String formattedTime = DateFormat('h:mm a').format(dt);
+    final cs = Theme.of(context).colorScheme;
+    final dt = DateTime.parse(log.dateTime);
+    final formattedDate =
+        '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}/${dt.year}';
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final formattedTime =
+        '$hour:${dt.minute.toString().padLeft(2, '0')} ${dt.hour >= 12 ? 'PM' : 'AM'}';
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header (Emoji & Date)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
                       children: [
-                        Text(log.emoji, style: const TextStyle(fontSize: 32)),
+                        Text(log.emoji,
+                            style: const TextStyle(fontSize: 32)),
                         const SizedBox(width: 12),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFDAE3F0),
+                            color: cs.primaryContainer,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             log.mood,
-                            style: const TextStyle(
-                              color: Color(0xFF3B4863),
-                              fontWeight: FontWeight.bold,
+                            style: TextStyle(
+                              color: cs.onPrimaryContainer,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
                             ),
                           ),
                         ),
@@ -388,52 +320,50 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
                       children: [
                         Text(
                           formattedDate,
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF3B4863)),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
+                          ),
                         ),
                         Text(
                           formattedTime,
-                          style:
-                              const TextStyle(fontSize: 12, color: Colors.grey),
+                          style: TextStyle(
+                              fontSize: 12, color: cs.outline),
                         ),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-
-                // Full Description
-                const Text(
+                const SizedBox(height: 20),
+                Text(
                   'Notes',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF3B4863),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F6F8),
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     log.description,
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                    style: TextStyle(
+                        fontSize: 14, color: cs.onSurface, height: 1.5),
                   ),
                 ),
-                const SizedBox(height: 32),
-
-                // Action Buttons (Edit / Delete)
+                const SizedBox(height: 24),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () async {
-                          Navigator.pop(context); // Close bottom sheet
+                          Navigator.pop(context);
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -441,40 +371,40 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
                                   AddMoodPage(moodToEdit: log),
                             ),
                           );
-                          // Refresh data if edited
-                          if (result == true) {
-                            _loadData();
-                          }
+                          if (result == true) _loadData();
                         },
-                        icon: const Icon(Icons.edit, color: Color(0xFF3B4863)),
-                        label: const Text('Edit',
-                            style: TextStyle(color: Color(0xFF3B4863))),
+                        icon: Icon(Icons.edit,
+                            color: cs.primary, size: 18),
+                        label: Text('Edit',
+                            style: TextStyle(color: cs.primary)),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFF3B4863)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: BorderSide(color: cs.primary),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          Navigator.pop(context); // Close bottom sheet
+                          Navigator.pop(context);
                           _confirmDelete(context, log);
                         },
                         icon: const Icon(Icons.delete_outline,
-                            color: Colors.white),
+                            color: Colors.white, size: 18),
                         label: const Text('Delete',
                             style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.redAccent,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ),
@@ -502,11 +432,11 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context); // Close dialog
+              Navigator.pop(context);
               if (log.id != null) {
                 final messenger = ScaffoldMessenger.of(context);
                 await DatabaseHelper().deleteMoodLog(log.id!);
-                _loadData(); // Refresh UI
+                _loadData();
                 if (mounted) {
                   messenger.showSnackBar(
                     const SnackBar(content: Text('Mood log deleted')),
@@ -520,19 +450,5 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
         ],
       ),
     );
-  }
-
-  Widget _buildPieChart() {
-    if (_moodLogs.isEmpty) {
-      return const Text('No data yet.');
-    }
-
-    // Count occurrences of each tag
-    Map<String, int> moodCounts = {};
-    for (var log in _moodLogs) {
-      moodCounts[log.mood] = (moodCounts[log.mood] ?? 0) + 1;
-    }
-
-    return HalfDonutChart(moodCounts: moodCounts);
   }
 }

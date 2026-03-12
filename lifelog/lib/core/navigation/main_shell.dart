@@ -75,34 +75,30 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF3EDCE), // Match beige background globally
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        titleSpacing: 16.0, // Match horizontal padding
+        titleSpacing: 16.0,
         title: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blueAccent, width: 2),
+                border: Border.all(color: cs.outlineVariant),
               ),
-              child: const Icon(Icons.volunteer_activism, color: Colors.orange),
+              child: Icon(Icons.volunteer_activism, color: const Color(0xFF8A4F00), size: 22),
             ),
             const SizedBox(width: 12),
-            const Text(
+            Text(
               'Lifelog',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w900,
-                color: Colors.black87,
+                color: cs.onSurface,
               ),
             ),
           ],
@@ -112,11 +108,9 @@ class _MainShellState extends State<MainShell> {
             alignment: Alignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications_none,
-                    size: 32, color: Color(0xFF3B4863)),
+                icon: Icon(Icons.notifications_none, size: 28, color: cs.onSurface),
                 onPressed: () async {
-                  await Navigator.of(context)
-                      .pushNamed(AppRoutes.notifications);
+                  await Navigator.of(context).pushNamed(AppRoutes.notifications);
                   _refreshUnreadCount();
                 },
                 tooltip: 'Notifications',
@@ -127,14 +121,14 @@ class _MainShellState extends State<MainShell> {
                   top: 8,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.redAccent,
+                    decoration: BoxDecoration(
+                      color: cs.error,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
                       _unreadCount > 9 ? '9+' : _unreadCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: cs.onError,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -144,13 +138,13 @@ class _MainShellState extends State<MainShell> {
             ],
           ),
           IconButton(
-            icon: const Icon(Icons.menu, size: 32, color: Color(0xFF3B4863)),
+            icon: Icon(Icons.menu, size: 28, color: cs.onSurface),
             onPressed: () {
               Navigator.of(context).pushNamed(AppRoutes.settings);
             },
             tooltip: 'Settings / Menu',
           ),
-          const SizedBox(width: 8), // Padding on right
+          const SizedBox(width: 8),
         ],
       ),
       body: IndexedStack(
@@ -158,10 +152,10 @@ class _MainShellState extends State<MainShell> {
         children: _pages,
       ),
       bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(6, 0, 6, 16),
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 16),
         child: Material(
           elevation: 3,
-          color: theme.colorScheme.surfaceContainer,
+          color: cs.surfaceContainer,
           borderRadius: BorderRadius.circular(28),
           clipBehavior: Clip.antiAlias,
           child: NavigationBar(
@@ -172,7 +166,7 @@ class _MainShellState extends State<MainShell> {
               });
             },
             destinations: _destinations,
-            backgroundColor: theme.colorScheme.surfaceContainer,
+            backgroundColor: cs.surfaceContainer,
           ),
         ),
       ),

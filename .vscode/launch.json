@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "lifelog (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "${workspaceFolder}/lifelog/lib/main.dart",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "lifelog (profile)",
+      "request": "launch",
+      "type": "dart",
+      "program": "${workspaceFolder}/lifelog/lib/main.dart",
+      "flutterMode": "profile"
+    }
+  ]
+}

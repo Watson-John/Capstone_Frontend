@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_calendar/calendar.dart';
 
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_fab.dart';
+import '../../../core/widgets/app_page_header.dart';
 import '../domain/models/todo_model.dart';
 import 'add_todo_page.dart';
 
@@ -15,20 +17,17 @@ class TodoListPage extends StatefulWidget {
 
 class _TodoListPageState extends State<TodoListPage> {
   DateTime _selectedDate = DateTime.now();
-  final CalendarController _calendarController = CalendarController();
   final ScrollController _dateScrollController = ScrollController();
   List<Todo> _todos = [];
 
   @override
   void initState() {
     super.initState();
-    _calendarController.displayDate = _selectedDate;
     _loadTodos();
 
-    // Scroll so the current date is the first visible day (left-aligned)
+    // Scroll so the current date is the first visible item.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_dateScrollController.hasClients) {
-        // Each item: 40px circle + 4px left margin + 4px right margin = 48px
         const double itemWidth = 48.0;
         final targetScroll = (_selectedDate.day - 1) * itemWidth;
         _dateScrollController.jumpTo(
@@ -50,31 +49,20 @@ class _TodoListPageState extends State<TodoListPage> {
 
   @override
   void dispose() {
-    _calendarController.dispose();
     _dateScrollController.dispose();
     super.dispose();
   }
 
   int get _daysInMonth {
-    final nextMonth = DateTime(_selectedDate.year, _selectedDate.month + 1, 1);
-    final lastDay = nextMonth.subtract(const Duration(days: 1));
-    return lastDay.day;
+    final nextMonth =
+        DateTime(_selectedDate.year, _selectedDate.month + 1, 1);
+    return nextMonth.subtract(const Duration(days: 1)).day;
   }
 
   String _getMonthYearString(DateTime date) {
     const months = [
-      'JANUARY',
-      'FEBRUARY',
-      'MARCH',
-      'APRIL',
-      'MAY',
-      'JUNE',
-      'JULY',
-      'AUGUST',
-      'SEPTEMBER',
-      'OCTOBER',
-      'NOVEMBER',
-      'DECEMBER'
+      'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+      'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
     ];
     return '${months[date.month - 1]} ${date.year}';
   }
@@ -89,7 +77,6 @@ class _TodoListPageState extends State<TodoListPage> {
     if (picked != null && picked.month != _selectedDate.month) {
       setState(() {
         _selectedDate = DateTime(picked.year, picked.month, 1);
-        _calendarController.displayDate = _selectedDate;
       });
       if (_dateScrollController.hasClients) {
         _dateScrollController.jumpTo(0);
@@ -100,21 +87,31 @@ class _TodoListPageState extends State<TodoListPage> {
   void _onDateSelected(DateTime date) {
     setState(() {
       _selectedDate = date;
-      _calendarController.displayDate = date;
     });
   }
 
   Future<void> _navigateToAddTodo() async {
     final result = await Navigator.of(context).pushNamed(AppRoutes.addTodo);
     if (result == true) {
-      _loadTodos(); // Refresh the list if a task was added
+      _loadTodos();
     }
+  }
+
+  /// Tasks whose date range overlaps the selected date.
+  List<Todo> get _todosForSelectedDate {
+    final sel = DateTime(
+        _selectedDate.year, _selectedDate.month, _selectedDate.day);
+    return _todos.where((t) {
+      final start =
+          DateTime(t.startDate.year, t.startDate.month, t.startDate.day);
+      final end = DateTime(t.dueDate.year, t.dueDate.month, t.dueDate.day);
+      return !sel.isBefore(start) && !sel.isAfter(end);
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3EDCE), // Beige background
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const ClampingScrollPhysics(),
@@ -124,345 +121,111 @@ class _TodoListPageState extends State<TodoListPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 16),
+                const AppPageHeader(title: 'To-Do List'),
+                const SizedBox(height: 16),
                 _buildScheduleCard(context),
                 const SizedBox(height: 16),
-                _buildStatsCard(),
-                const SizedBox(height: 24),
+                _buildStatsCard(context),
+                const SizedBox(height: 96),
               ],
             ),
           ),
         ),
       ),
+      floatingActionButton: AppFab(onPressed: _navigateToAddTodo),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
+
+  // ── Schedule card ──────────────────────────────────────────────────────────
 
   Widget _buildScheduleCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFDFDFD),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: cs.surfaceContainer,
+        borderRadius: BorderRadius.circular(24),
       ),
       padding: const EdgeInsets.all(20.0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildCardHeader(),
-          const SizedBox(height: 16),
-          const Divider(height: 1, thickness: 1.5, color: Color(0xFFDCDFD8)),
-          const SizedBox(height: 24),
-          _buildScheduleView(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDFDFD),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(20.0),
-      child: _buildStatsGrid(),
-    );
-  }
-
-  Widget _buildCardHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF5CCB44),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ]),
-              padding: const EdgeInsets.all(4),
-              child: const Icon(Icons.check, color: Colors.white, size: 28),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'TO DO LIST',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF3B4863),
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-        ElevatedButton(
-          onPressed: _navigateToAddTodo,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF3B4863),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            elevation: 2,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-          child: const Text(
-            'Add Task',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildScheduleView(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9), // Light blue-grey background
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ]),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-      child: Column(
-        children: [
-          const Text(
-            'Today\'s Task',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF3B4863),
-              decoration: TextDecoration.underline,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              GestureDetector(
-                onTap: () => _selectMonth(context),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3B4863),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        _getMonthYearString(_selectedDate),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.keyboard_arrow_down,
-                          color: Colors.white, size: 16),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _buildDateSelector(),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 400, // Fixed height for calendar
-            child: SfCalendar(
-              controller: _calendarController,
-              view: CalendarView.day,
-              headerHeight: 0,
-              viewHeaderHeight: 0,
-              todayHighlightColor: const Color(0xFF3B4863),
-              onTap: (CalendarTapDetails details) {
-                if (details.appointments != null &&
-                    details.appointments!.isNotEmpty) {
-                  final Appointment appointment = details.appointments!.first;
-                  final int todoId = appointment.id as int;
-                  final Todo matchedTodo =
-                      _todos.firstWhere((t) => t.id == todoId);
-                  _showTasksBottomSheet(context, 'Task Details', [matchedTodo]);
-                }
-              },
-              timeSlotViewSettings: const TimeSlotViewSettings(
-                startHour: 0,
-                endHour: 24,
-                timeFormat: 'H:mm',
-                timeIntervalHeight: 60,
-                timeTextStyle: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF3B4863),
-                ),
-              ),
-              dataSource: _getDataSource(),
-              appointmentBuilder: (context, calendarAppointmentDetails) {
-                final Appointment appointment =
-                    calendarAppointmentDetails.appointments.first;
-                return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: appointment.color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: appointment.color, width: 1.5),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        appointment.subject,
-                        style: TextStyle(
-                          color: appointment.color,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Expanded(
-                        child: Text(
-                          '${_formatTime(appointment.startTime)} - ${_formatTime(appointment.endTime)}',
-                          style: TextStyle(
-                            color: appointment.color.withValues(alpha: 0.8),
-                            fontSize: 8,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              onViewChanged: (ViewChangedDetails details) {
-                // Sync the date selector when calendar is swiped
-                if (details.visibleDates.isNotEmpty) {
-                  final newDate = details.visibleDates.first;
-                  if (newDate.day != _selectedDate.day ||
-                      newDate.month != _selectedDate.month ||
-                      newDate.year != _selectedDate.year) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
-                        setState(() {
-                          _selectedDate = newDate;
-                        });
-                      }
-                    });
-                  }
-                }
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    int hour = time.hour;
-    int minute = time.minute;
-    String period = hour >= 12 ? 'P.M.' : 'A.M.';
-    hour = hour > 12 ? hour - 12 : hour;
-    if (hour == 0) hour = 12;
-    String minuteStr = minute.toString().padLeft(2, '0');
-    return '$hour:$minuteStr $period';
-  }
-
-  Widget _buildDateSelector() {
-    final daysCount = _daysInMonth;
-    return ShaderMask(
-      shaderCallback: (bounds) => const LinearGradient(
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-        colors: [
-          Colors.transparent,
-          Colors.white,
-          Colors.white,
-          Colors.transparent,
-        ],
-        stops: [0.0, 0.06, 0.88, 1.0],
-      ).createShader(bounds),
-      blendMode: BlendMode.dstIn,
-      child: SingleChildScrollView(
-        controller: _dateScrollController,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-        child: Row(
-        children: List.generate(daysCount, (index) {
-          final day = index + 1;
-          final isSelected = day == _selectedDate.day;
-          return GestureDetector(
-            onTap: () => _onDateSelected(
-                DateTime(_selectedDate.year, _selectedDate.month, day)),
+          // Month selector
+          GestureDetector(
+            onTap: () => _selectMonth(context),
             child: Container(
-              width: 40,
-              height: 40,
-              // Uniform 4px on each side → 48px total per item
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected ? const Color(0xFF3B4863) : Colors.white,
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: const Color(0xFF3B4863).withValues(alpha: 0.4),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        )
-                      ]
-                    : [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        )
-                      ],
+                color: cs.primary,
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(
-                '$day',
-                style: TextStyle(
-                  color: isSelected ? Colors.white : const Color(0xFF3B4863),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _getMonthYearString(_selectedDate),
+                    style: TextStyle(
+                      color: cs.onPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.keyboard_arrow_down,
+                      color: cs.onPrimary, size: 16),
+                ],
               ),
             ),
-          );
-        }),
-        ),
+          ),
+          const SizedBox(height: 16),
+
+          // Date selector row
+          DateSelectorRow(
+            selectedDate: _selectedDate,
+            daysInMonth: _daysInMonth,
+            controller: _dateScrollController,
+            onDateSelected: _onDateSelected,
+          ),
+          const SizedBox(height: 20),
+
+          // Task list for selected day
+          Text(
+            "Today's Tasks",
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 12),
+          _buildTaskList(context),
+        ],
       ),
     );
   }
 
-  Widget _buildStatsGrid() {
+  Widget _buildTaskList(BuildContext context) {
+    final tasks = _todosForSelectedDate;
+    if (tasks.isEmpty) {
+      return _EmptyTaskState();
+    }
+    return Column(
+      children: tasks
+          .map((todo) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: TaskTimelineCard(
+                  todo: todo,
+                  onTap: () =>
+                      _showTasksBottomSheet(context, 'Task Details', [todo]),
+                ),
+              ))
+          .toList(),
+    );
+  }
+
+  // ── Stats card ─────────────────────────────────────────────────────────────
+
+  Widget _buildStatsCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final int total = _todos.length;
     final int todoCount = _todos.where((t) => t.status == 'To Do').length;
     final int inProgressCount =
@@ -470,55 +233,50 @@ class _TodoListPageState extends State<TodoListPage> {
     final int completedCount =
         _todos.where((t) => t.status == 'Completed').length;
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: 1.25,
-      children: [
-        _buildStatCard('Total Task', total.toString(), Colors.white,
-            const Color(0xFF3B4863), _todos),
-        _buildStatCard(
-            'To Do',
-            todoCount.toString(),
-            const Color(0xFFDF9E9D),
-            const Color(0xFF3B4863),
-            _todos.where((t) => t.status == 'To Do').toList()),
-        _buildStatCard(
-            'In Progress',
-            inProgressCount.toString(),
-            const Color(0xFFEBECF1),
-            const Color(0xFF3B4863),
-            _todos.where((t) => t.status == 'In Progress').toList()),
-        _buildStatCard(
-            'Completed',
-            completedCount.toString(),
-            const Color(0xFFAED4A4),
-            const Color(0xFF3B4863),
-            _todos.where((t) => t.status == 'Completed').toList()),
-      ],
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.3,
+        children: [
+          _buildStatCard(context, 'Total', total.toString(),
+              AppTheme.cardTotalBg, cs.onSurface, _todos),
+          _buildStatCard(context, 'To Do', todoCount.toString(),
+              AppTheme.cardToDoBg, cs.onSurface,
+              _todos.where((t) => t.status == 'To Do').toList()),
+          _buildStatCard(context, 'In Progress', inProgressCount.toString(),
+              AppTheme.cardInProgressBg, cs.onSurface,
+              _todos.where((t) => t.status == 'In Progress').toList()),
+          _buildStatCard(context, 'Completed', completedCount.toString(),
+              AppTheme.cardCompletedBg, cs.onSurface,
+              _todos.where((t) => t.status == 'Completed').toList()),
+        ],
+      ),
     );
   }
 
-  Widget _buildStatCard(String title, String count, Color bgColor,
-      Color textColor, List<Todo> filteredTasks) {
+  Widget _buildStatCard(
+    BuildContext context,
+    String title,
+    String count,
+    Color bgColor,
+    Color textColor,
+    List<Todo> filteredTasks,
+  ) {
     return GestureDetector(
       onTap: () => _showTasksBottomSheet(context, title, filteredTasks),
       child: Container(
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: bgColor == Colors.white
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  )
-                ]
-              : [],
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -526,16 +284,16 @@ class _TodoListPageState extends State<TodoListPage> {
             Text(
               title,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 color: textColor,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               count,
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 26,
                 color: textColor,
                 fontWeight: FontWeight.w900,
               ),
@@ -546,13 +304,13 @@ class _TodoListPageState extends State<TodoListPage> {
     );
   }
 
+  // ── Bottom sheet ───────────────────────────────────────────────────────────
+
   void _showTasksBottomSheet(
       BuildContext context, String title, List<Todo> tasks) {
+    final cs = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
@@ -566,11 +324,9 @@ class _TodoListPageState extends State<TodoListPage> {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF3B4863),
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
@@ -578,23 +334,17 @@ class _TodoListPageState extends State<TodoListPage> {
                       ),
                     ],
                   ),
-                  const Divider(thickness: 1.5),
+                  const Divider(),
                   Expanded(
                     child: tasks.isEmpty
                         ? const Center(
-                            child: Text("No tasks in this category."))
+                            child: Text('No tasks in this category.'))
                         : ListView.builder(
                             itemCount: tasks.length,
                             itemBuilder: (context, index) {
                               final todo = tasks[index];
                               return Card(
-                                margin: const EdgeInsets.symmetric(vertical: 8),
-                                elevation: 0,
-                                color: const Color(0xFFF1F5F9),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(color: Colors.grey.shade300),
-                                ),
+                                margin: const EdgeInsets.symmetric(vertical: 6),
                                 child: Padding(
                                   padding: const EdgeInsets.all(16.0),
                                   child: Column(
@@ -602,106 +352,78 @@ class _TodoListPageState extends State<TodoListPage> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
                                           Expanded(
                                             child: Text(
                                               todo.task,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                                color: Color(0xFF2B3A55),
+                                                fontSize: 15,
+                                                color: cs.onSurface,
                                               ),
                                             ),
                                           ),
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(Icons.edit,
-                                                    color: Color(0xFF3B4863),
-                                                    size: 20),
-                                                padding: EdgeInsets.zero,
-                                                constraints:
-                                                    const BoxConstraints(),
-                                                onPressed: () async {
-                                                  final updated =
-                                                      await Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) =>
-                                                          AddTodoPage(
-                                                              todoToEdit: todo),
-                                                    ),
-                                                  );
-                                                  if (updated == true) {
-                                                    if (sheetContext.mounted) {
-                                                      Navigator.pop(
-                                                          sheetContext); // Close overlay after saving
-                                                    }
-                                                    _loadTodos(); // Refresh list
-                                                  }
-                                                },
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(Icons.delete,
-                                                    color: Colors.red,
-                                                    size: 20),
-                                                padding: EdgeInsets.zero,
-                                                constraints:
-                                                    const BoxConstraints(),
-                                                onPressed: () async {
-                                                  if (todo.id != null) {
-                                                    await DatabaseHelper()
-                                                        .deleteTodo(todo.id!);
-                                                    if (sheetContext.mounted) {
-                                                      Navigator.pop(
-                                                          sheetContext);
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        const SnackBar(
-                                                            content: Text(
-                                                                'Task deleted successfully!')),
-                                                      );
-                                                    }
-                                                    _loadTodos();
-                                                  }
-                                                },
-                                              ),
-                                            ],
+                                          IconButton(
+                                            icon: Icon(Icons.edit,
+                                                color: cs.onSurfaceVariant, size: 20),
+                                            padding: EdgeInsets.zero,
+                                            constraints:
+                                                const BoxConstraints(),
+                                            onPressed: () async {
+                                              final updated =
+                                                  await Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      AddTodoPage(
+                                                          todoToEdit: todo),
+                                                ),
+                                              );
+                                              if (updated == true) {
+                                                if (sheetContext.mounted) {
+                                                  Navigator.pop(sheetContext);
+                                                }
+                                                _loadTodos();
+                                              }
+                                            },
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.delete,
+                                                color: cs.error, size: 20),
+                                            padding: EdgeInsets.zero,
+                                            constraints:
+                                                const BoxConstraints(),
+                                            onPressed: () async {
+                                              if (todo.id != null) {
+                                                await DatabaseHelper()
+                                                    .deleteTodo(todo.id!);
+                                                if (sheetContext.mounted) {
+                                                  Navigator.pop(sheetContext);
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(const SnackBar(
+                                                          content: Text(
+                                                              'Task deleted successfully!')));
+                                                }
+                                                _loadTodos();
+                                              }
+                                            },
                                           ),
                                         ],
                                       ),
                                       const SizedBox(height: 6),
                                       Row(
                                         children: [
-                                          const Icon(Icons.schedule,
+                                          Icon(Icons.schedule,
                                               size: 14,
-                                              color: Color(0xFF3B4863)),
+                                              color: cs.onSurfaceVariant),
                                           const SizedBox(width: 4),
                                           Text(
-                                            '${todo.startDate.month.toString().padLeft(2, '0')}/${todo.startDate.day.toString().padLeft(2, '0')}/${todo.startDate.year}',
+                                            '${_fmtDate(todo.startDate)} → ${_fmtDate(todo.dueDate)}',
                                             style: TextStyle(
                                                 fontSize: 12,
-                                                color: Colors.grey.shade700,
-                                                fontWeight: FontWeight.w600),
-                                          ),
-                                          const Padding(
-                                            padding: EdgeInsets.symmetric(
-                                                horizontal: 4.0),
-                                            child: Text('-',
-                                                style: TextStyle(fontSize: 12)),
-                                          ),
-                                          Text(
-                                            '${todo.dueDate.month.toString().padLeft(2, '0')}/${todo.dueDate.day.toString().padLeft(2, '0')}/${todo.dueDate.year}',
-                                            style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade700,
-                                                fontWeight: FontWeight.w600),
+                                                color: cs.onSurfaceVariant),
                                           ),
                                         ],
                                       ),
@@ -710,46 +432,42 @@ class _TodoListPageState extends State<TodoListPage> {
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceBetween,
                                         children: [
-                                          const Text(
-                                            'Status:',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
-                                          ),
+                                          Text('Status:',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                  color: cs.onSurface)),
                                           Container(
                                             height: 36,
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 12),
                                             decoration: BoxDecoration(
-                                              color: Colors.white,
+                                              color: cs.surface,
                                               borderRadius:
                                                   BorderRadius.circular(8),
                                               border: Border.all(
-                                                  color: Colors.grey.shade400),
+                                                  color: cs.outline),
                                             ),
                                             child: DropdownButtonHideUnderline(
                                               child: DropdownButton<String>(
                                                 value: todo.status,
-                                                icon: const Icon(
+                                                icon: Icon(
                                                     Icons.arrow_drop_down,
-                                                    color: Color(0xFF3B4863)),
-                                                style: const TextStyle(
-                                                  color: Color(0xFF3B4863),
+                                                    color: cs.primary),
+                                                style: TextStyle(
+                                                  color: cs.onSurface,
                                                   fontWeight: FontWeight.bold,
                                                 ),
-                                                items: <String>[
+                                                items: const [
                                                   'To Do',
                                                   'In Progress',
                                                   'Completed'
-                                                ].map<DropdownMenuItem<String>>(
-                                                    (String value) {
-                                                  return DropdownMenuItem<
-                                                      String>(
-                                                    value: value,
-                                                    child: Text(value),
-                                                  );
-                                                }).toList(),
+                                                ]
+                                                    .map((v) =>
+                                                        DropdownMenuItem(
+                                                            value: v,
+                                                            child: Text(v)))
+                                                    .toList(),
                                                 onChanged:
                                                     (String? newValue) async {
                                                   if (newValue != null &&
@@ -760,24 +478,16 @@ class _TodoListPageState extends State<TodoListPage> {
                                                     await DatabaseHelper()
                                                         .updateTodo(
                                                             updatedTodo);
-
                                                     if (context.mounted) {
                                                       ScaffoldMessenger.of(
                                                               context)
-                                                          .showSnackBar(
-                                                        const SnackBar(
-                                                            content: Text(
-                                                                'Changes saved successfully!')),
-                                                      );
+                                                          .showSnackBar(const SnackBar(
+                                                              content: Text(
+                                                                  'Changes saved successfully!')));
                                                     }
-
-                                                    // Also update local list so modal shows new value
                                                     setModalState(() {
-                                                      tasks[index] =
-                                                          updatedTodo;
+                                                      tasks[index] = updatedTodo;
                                                     });
-
-                                                    // Refresh the main page behind it
                                                     _loadTodos();
                                                   }
                                                 },
@@ -802,36 +512,232 @@ class _TodoListPageState extends State<TodoListPage> {
     );
   }
 
-  _DataSource _getDataSource() {
-    final List<Appointment> appointments = <Appointment>[];
+  String _fmtDate(DateTime d) =>
+      '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
+}
 
-    for (var todo in _todos) {
-      Color taskColor;
+// ── DateSelectorRow ────────────────────────────────────────────────────────────
 
-      // Assign dynamic colors based on status, or fallback to an arbitrary color scheme
-      if (todo.status == 'In Progress') {
-        taskColor = const Color(0xFFE1B846); // Yellow for in progress
-      } else if (todo.status == 'Completed') {
-        taskColor = const Color(0xFF558B6E); // Green for completed
-      } else {
-        taskColor = const Color(0xFFDF9E9D); // Red/pink for Todo
-      }
+class DateSelectorRow extends StatelessWidget {
+  const DateSelectorRow({
+    super.key,
+    required this.selectedDate,
+    required this.daysInMonth,
+    required this.controller,
+    required this.onDateSelected,
+  });
 
-      appointments.add(Appointment(
-        startTime: todo.startDate,
-        endTime: todo.dueDate,
-        subject: todo.task,
-        color: taskColor,
-        id: todo.id, // Store native ID for later click handling
-      ));
-    }
+  final DateTime selectedDate;
+  final int daysInMonth;
+  final ScrollController controller;
+  final ValueChanged<DateTime> onDateSelected;
 
-    return _DataSource(appointments);
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return ShaderMask(
+      shaderCallback: (bounds) => const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+        stops: [0.0, 0.06, 0.88, 1.0],
+      ).createShader(bounds),
+      blendMode: BlendMode.dstIn,
+      child: SingleChildScrollView(
+        controller: controller,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Row(
+          children: List.generate(daysInMonth, (index) {
+            final day = index + 1;
+            final isSelected = day == selectedDate.day;
+            return GestureDetector(
+              onTap: () => onDateSelected(
+                  DateTime(selectedDate.year, selectedDate.month, day)),
+              child: Container(
+                width: 40,
+                height: 40,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? cs.primary : AppTheme.cardChildBg,
+                  border: isSelected ? null : Border.all(color: cs.outlineVariant),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isSelected ? 0.15 : 0.06),
+                      blurRadius: isSelected ? 6 : 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '$day',
+                  style: TextStyle(
+                    color: isSelected ? cs.onPrimary : cs.onSurface,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
   }
 }
 
-class _DataSource extends CalendarDataSource {
-  _DataSource(List<Appointment> source) {
-    appointments = source;
+// ── TaskTimelineCard ───────────────────────────────────────────────────────────
+
+class TaskTimelineCard extends StatelessWidget {
+  const TaskTimelineCard({
+    super.key,
+    required this.todo,
+    required this.onTap,
+  });
+
+  final Todo todo;
+  final VoidCallback onTap;
+
+  Color _statusBg(ColorScheme cs) {
+    switch (todo.status) {
+      case 'Completed':
+        return AppTheme.cardCompletedBg;
+      case 'In Progress':
+        return AppTheme.cardInProgressBg;
+      default: // To Do
+        return AppTheme.cardToDoBg;
+    }
+  }
+
+  Color _statusFg(ColorScheme cs) {
+    return const Color(0xFF1C1C1C); // Always near-black — no colored text
+  }
+
+  Color _statusStripe(ColorScheme cs) {
+    switch (todo.status) {
+      case 'Completed':
+        return AppTheme.accentGreen;         // dark sage green
+      case 'In Progress':
+        return const Color(0xFF8A4F00);      // brand brown (kept per spec)
+      default: // To Do
+        return const Color(0xFFB07D00);      // darker amber
+    }
+  }
+
+  String _fmtTime(DateTime dt) {
+    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final m = dt.minute.toString().padLeft(2, '0');
+    final period = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$h:$m $period';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.cardChildBg,        // Level 2: sits on top of white Level 1 card
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            // Status stripe
+            Container(
+              width: 4,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _statusStripe(cs),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Task details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    todo.task,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_fmtTime(todo.startDate)} – ${_fmtTime(todo.dueDate)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Status chip
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _statusBg(cs),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: cs.outlineVariant),
+              ),
+              child: Text(
+                todo.status,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _statusFg(cs),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Empty state ────────────────────────────────────────────────────────────────
+
+class _EmptyTaskState extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      child: Column(
+        children: [
+          Icon(Icons.task_alt_outlined, size: 48, color: cs.outlineVariant),
+          const SizedBox(height: 10),
+          Text(
+            'No tasks for this day',
+            style: TextStyle(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap + to add one',
+            style: TextStyle(color: cs.outline, fontSize: 12),
+          ),
+        ],
+      ),
+    );
   }
 }

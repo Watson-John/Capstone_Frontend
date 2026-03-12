@@ -1,15 +1,22 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_page_header.dart';
 import '../data/expense_service.dart';
 import '../domain/models/budget.dart';
 import '../domain/models/expense.dart';
-import 'widgets/budget_card.dart';
-import 'widgets/scan_button.dart';
+
+// ── Filter period ─────────────────────────────────────────────────────────────
+
+enum _FilterPeriod { all, daily, weekly }
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 class ExpenseTrackerPage extends StatefulWidget {
   const ExpenseTrackerPage({super.key});
@@ -18,18 +25,80 @@ class ExpenseTrackerPage extends StatefulWidget {
   State<ExpenseTrackerPage> createState() => _ExpenseTrackerPageState();
 }
 
-class _ExpenseTrackerPageState extends State<ExpenseTrackerPage> {
+class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
+    with SingleTickerProviderStateMixin {
   final _service = ExpenseService();
+  final _imagePicker = ImagePicker();
+
   List<Expense> _expenses = [];
   Budget? _budget;
-  double _periodSpent = 0;
   bool _isScanning = false;
   bool _isLoading = true;
+  bool _isFabMenuOpen = false;
+
+  _FilterPeriod _selectedFilter = _FilterPeriod.all;
+  bool _showAll = false;
+
+  static const double _fabMenuGap = 12;
+  static const Duration _fabAnimDuration = Duration(milliseconds: 420);
+
+  late AnimationController _fabAnim;
+  // Add Manually appears first (bottom item), Scan Receipt appears second (top item)
+  late CurvedAnimation _fabAnimAdd;
+  late CurvedAnimation _fabAnimScan;
+
+  // ── Computed ────────────────────────────────────────────────────────────────
+
+  List<Expense> get _filteredExpenses {
+    final now = DateTime.now();
+    return _expenses.where((e) {
+      final logged = DateTime.tryParse(e.createdAt);
+      if (logged == null) return false;
+      switch (_selectedFilter) {
+        case _FilterPeriod.all:
+          return true;
+        case _FilterPeriod.daily:
+          return logged.year == now.year &&
+              logged.month == now.month &&
+              logged.day == now.day;
+        case _FilterPeriod.weekly:
+          final monday = now.subtract(Duration(days: now.weekday - 1));
+          final weekStart =
+              DateTime(monday.year, monday.month, monday.day);
+          return !logged.isBefore(weekStart);
+      }
+    }).toList();
+  }
+
+  double get _filteredSpent =>
+      _filteredExpenses.fold(0.0, (s, e) => s + e.amount);
+
+  // ── Lifecycle ───────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    _fabAnim = AnimationController(vsync: this, duration: _fabAnimDuration);
+    // Bottom action (Add Manually) leads the entrance; top action (Scan) follows.
+    _fabAnimAdd = CurvedAnimation(
+      parent: _fabAnim,
+      curve: const Interval(0.0, 0.82, curve: Curves.easeOutBack),
+      reverseCurve: Curves.easeInCubic,
+    );
+    _fabAnimScan = CurvedAnimation(
+      parent: _fabAnim,
+      curve: const Interval(0.18, 1.0, curve: Curves.easeOutBack),
+      reverseCurve: Curves.easeInCubic,
+    );
     _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _fabAnimAdd.dispose();
+    _fabAnimScan.dispose();
+    _fabAnim.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAll() async {
@@ -43,22 +112,45 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage> {
       _budget = budget;
       _isLoading = false;
     });
-    _recalcPeriodSpent(expenses, budget);
   }
 
-  void _recalcPeriodSpent(List<Expense> expenses, Budget? budget) {
-    if (budget == null) return;
-    final now = DateTime.now();
-    final start = budget.currentPeriodStart(now);
-    // Filter by createdAt (when the expense was logged), not the receipt's
-    // printed date. Scanning an old receipt today should count against the
-    // current period budget.
-    final spent = expenses.where((e) {
-      final logged = DateTime.tryParse(e.createdAt);
-      if (logged == null) return false;
-      return !logged.isBefore(start) && !logged.isAfter(now);
-    }).fold(0.0, (sum, e) => sum + e.amount);
-    if (mounted) setState(() => _periodSpent = spent);
+  // ── Image picking / scanning ─────────────────────────────────────────────
+
+  Future<XFile?> _pickAndCompress(ImageSource source) async {
+    XFile? image = await _imagePicker.pickImage(
+      source: source,
+      preferredCameraDevice: CameraDevice.rear,
+      imageQuality: 85,
+      maxWidth: 2048,
+      maxHeight: 2048,
+    );
+    if (image == null) return null;
+    const maxBytes = 20 * 1024 * 1024;
+    const minBytes = 250;
+    int size = await File(image.path).length();
+    if (size > maxBytes) {
+      final recompressed = await _imagePicker.pickImage(
+        source: source,
+        preferredCameraDevice: CameraDevice.rear,
+        imageQuality: 60,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (recompressed != null) {
+        image = recompressed;
+        size = await File(image.path).length();
+      }
+    }
+    if (!mounted) return null;
+    if (size < minBytes) {
+      _showSnack('Image is too small to process.');
+      return null;
+    }
+    if (size > maxBytes) {
+      _showSnack('Image is too large. Try a smaller photo.');
+      return null;
+    }
+    return image;
   }
 
   Future<void> _onImageCaptured(XFile image) async {
@@ -81,6 +173,12 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage> {
     } finally {
       if (mounted) setState(() => _isScanning = false);
     }
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showError(String message) {
@@ -180,108 +278,697 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage> {
     if (saved == true && mounted) _loadAll();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _buildContent(context),
+  // ── FAB actions (spring menu) ───────────────────────────────────────────
 
-        // Scanning overlay
-        if (_isScanning)
-          Container(
-            color: Colors.black54,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Scanning receipt\u2026',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-        // Scan FAB
-        Align(
-          alignment: Alignment.bottomRight,
-          child: SafeArea(
-            minimum: const EdgeInsets.only(right: 20, bottom: 24),
-            child: ScanButton(
-              onImageCaptured: _isScanning ? null : _onImageCaptured,
-            ),
-          ),
-        ),
-      ],
-    );
+  void _toggleFabMenu() {
+    if (_isScanning) return;
+    setState(() => _isFabMenuOpen = !_isFabMenuOpen);
+    if (_isFabMenuOpen) {
+      _fabAnim.forward();
+    } else {
+      _fabAnim.reverse();
+    }
   }
 
-  Widget _buildContent(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  Future<void> _onAddManualTap() async {
+    _fabAnim.reverse();
+    setState(() => _isFabMenuOpen = false);
+    final saved = await Navigator.of(context)
+        .pushNamed(AppRoutes.addExpense, arguments: null);
+    if (saved == true) _loadAll();
+  }
 
-    final budgetWidget = _budget != null
-        ? BudgetCard(
-            budget: _budget!,
-            spent: _periodSpent,
-            onEdit: () => _showBudgetDialog(_budget),
-          )
-        : _SetBudgetBanner(onTap: () => _showBudgetDialog());
+  void _onScanTap() {
+    _fabAnim.reverse();
+    setState(() => _isFabMenuOpen = false);
+    _showScanSourceSheet();
+  }
 
-    if (_expenses.isEmpty) {
-      return Column(
-        children: [
-          budgetWidget,
-          Expanded(child: _buildEmptyState(context)),
-        ],
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 96),
-      itemCount: _expenses.length + 1, // index 0 = budget widget
-      itemBuilder: (context, index) {
-        if (index == 0) return budgetWidget;
-        final expense = _expenses[index - 1];
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: _ExpenseCard(
-            expense: expense,
-            onDelete: () => _deleteExpense(expense),
+  /// Builds a single FAB action item driven by [animation].
+  /// Scale originates from the right edge so items feel anchored to the main FAB.
+  Widget _buildFabAction({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    required Animation<double> animation,
+    required String heroTag,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return AnimatedBuilder(
+      animation: animation,
+      child: FloatingActionButton.extended(
+        heroTag: heroTag,
+        onPressed: onTap,
+        backgroundColor: cs.primaryContainer,
+        foregroundColor: cs.onPrimaryContainer,
+        shape: const StadiumBorder(),
+        extendedPadding: const EdgeInsets.symmetric(horizontal: 16),
+        extendedIconLabelSpacing: 10,
+        icon: Icon(icon),
+        label: Text(label),
+      ),
+      builder: (context, child) {
+        // Clamp for opacity/pointer but allow raw value for translate so the
+        // easeOutBack overshoot (values slightly > 1) creates the spring pop.
+        final t = animation.value.clamp(0.0, 1.0);
+        return IgnorePointer(
+          ignoring: t < 0.5,
+          child: Opacity(
+            opacity: t,
+            child: Transform.translate(
+              offset: Offset(0, (1 - animation.value) * 16),
+              child: Transform.scale(
+                scale: 0.75 + (0.25 * t),
+                alignment: Alignment.centerRight,
+                child: child,
+              ),
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.receipt_long_outlined,
-              size: 64, color: colorScheme.outlineVariant),
-          const SizedBox(height: 12),
-          Text(
-            'No expenses yet',
-            style: theme.textTheme.titleMedium
-                ?.copyWith(color: colorScheme.onSurfaceVariant),
+  Widget _buildFabMenu() {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _buildFabAction(
+          label: 'Scan Receipt',
+          icon: Icons.document_scanner_outlined,
+          onTap: _onScanTap,
+          animation: _fabAnimScan,
+          heroTag: 'expense-fab-action-scan',
+        ),
+        const SizedBox(height: _fabMenuGap),
+        _buildFabAction(
+          label: 'Add Manually',
+          icon: Icons.edit_outlined,
+          onTap: _onAddManualTap,
+          animation: _fabAnimAdd,
+          heroTag: 'expense-fab-action-add',
+        ),
+        const SizedBox(height: _fabMenuGap),
+        SizedBox(
+          width: 78,
+          height: 78,
+          child: AnimatedBuilder(
+            animation: _fabAnim,
+            builder: (context, _) {
+              final t = _fabAnim.value;
+              final easedT = Curves.easeOutCubic.transform(t);
+              final shape = ShapeBorder.lerp(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                const CircleBorder(),
+                easedT,
+              );
+              return FloatingActionButton(
+                heroTag: 'expense-fab-main',
+                onPressed: _isScanning ? null : _toggleFabMenu,
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                shape: shape,
+                elevation: 6 - (2 * t),
+                tooltip: _isFabMenuOpen ? 'Close actions' : 'Add expense',
+                child: Transform.rotate(
+                  angle: (math.pi / 4) * t,
+                  child: const Icon(Icons.add, size: 30),
+                ),
+              );
+            },
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Tap the scan button to add one',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
+  void _showScanSourceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(sheetCtx).colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _AddOptionTile(
+                  icon: Icons.photo_camera_outlined,
+                  iconColor: Theme.of(sheetCtx).colorScheme.secondary,
+                  title: 'Take Photo',
+                  subtitle: 'Use camera',
+                  onTap: () async {
+                    Navigator.of(sheetCtx).pop();
+                    final image =
+                        await _pickAndCompress(ImageSource.camera);
+                    if (image != null && mounted) {
+                      await _onImageCaptured(image);
+                    }
+                  },
+                ),
+                const Divider(height: 1),
+                _AddOptionTile(
+                  icon: Icons.photo_library_outlined,
+                  iconColor: Theme.of(sheetCtx).colorScheme.secondary,
+                  title: 'Choose From Device',
+                  subtitle: 'Pick from gallery',
+                  onTap: () async {
+                    Navigator.of(sheetCtx).pop();
+                    final image =
+                        await _pickAndCompress(ImageSource.gallery);
+                    if (image != null && mounted) {
+                      await _onImageCaptured(image);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Build ────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      floatingActionButton: _buildFabMenu(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      body: Stack(
+        children: [
+          // Main scrollable content
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        const AppPageHeader(title: 'Expenses'),
+                        const SizedBox(height: 16),
+                        _buildFilterPills(),
+                        const SizedBox(height: 16),
+                        _buildSummaryCard(context),
+                        const SizedBox(height: 20),
+                        _buildTransactionsSection(context),
+                        const SizedBox(height: 96),
+                      ],
+                    ),
+                  ),
+                ),
+
+          // Scanning overlay (covers body only; FAB is naturally above)
+          if (_isScanning)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: Colors.white),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Scanning receipt\u2026',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Filter pills ─────────────────────────────────────────────────────────
+
+  static const _buttonStyle = ButtonStyle(
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    minimumSize: WidgetStatePropertyAll(Size(0, 40)),
+    padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 24)),
+    shape: WidgetStatePropertyAll(StadiumBorder()),
+    textStyle: WidgetStatePropertyAll(
+      TextStyle(fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.1),
+    ),
+  );
+
+  Widget _buildFilterPills() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _filterBtn(_FilterPeriod.all,    'All'),
+        const SizedBox(width: 4),
+        _filterBtn(_FilterPeriod.daily,  'Daily'),
+        const SizedBox(width: 4),
+        _filterBtn(_FilterPeriod.weekly, 'Weekly'),
+      ],
+    );
+  }
+
+  Widget _filterBtn(_FilterPeriod period, String label) {
+    final isSelected = _selectedFilter == period;
+    void onPressed() => setState(() {
+      _selectedFilter = period;
+      _showAll = false;
+    });
+    return isSelected
+        ? FilledButton(onPressed: onPressed, style: _buttonStyle, child: Text(label))
+        : OutlinedButton(onPressed: onPressed, style: _buttonStyle, child: Text(label));
+  }
+
+  // ── Summary card ─────────────────────────────────────────────────────────
+
+  Widget _buildSummaryCard(BuildContext context) {
+    final budgetAmount = _budget?.limitAmount ?? 0.0;
+    final spent = _filteredSpent;
+
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Left: Budget + Spent
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SummaryItem(
+                  label: 'Budget',
+                  amount: budgetAmount,
+                  dotColor: AppTheme.accentGreen,
+                  onEditTap: () => _showBudgetDialog(_budget),
+                ),
+                const SizedBox(height: 20),
+                _SummaryItem(
+                  label: 'Spent',
+                  amount: spent,
+                  dotColor: AppTheme.accentRed,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Right: Donut chart
+          SizedBox(
+            width: 110,
+            height: 110,
+            child: CustomPaint(
+              painter: _DonutPainter(
+                spent: spent,
+                total: budgetAmount,
+                spentColor: AppTheme.accentRed,
+                remainColor: AppTheme.accentGreen,
+                trackColor: cs.outlineVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Transactions section ─────────────────────────────────────────────────
+
+  Widget _buildTransactionsSection(BuildContext context) {
+    final all = _filteredExpenses;
+    final visible = _showAll ? all : all.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent transactions',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            if (all.length > 5)
+              GestureDetector(
+                onTap: () => setState(() => _showAll = !_showAll),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Text(
+                    _showAll ? 'Show Less' : 'See All',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // List or empty state
+        if (visible.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.receipt_long_outlined,
+                      size: 52, color: Colors.grey.shade400),
+                  const SizedBox(height: 10),
+                  Text(
+                    'No transactions',
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tap + to add one',
+                    style: TextStyle(
+                        color: Colors.grey.shade400, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...visible.map(
+            (expense) => Dismissible(
+              key: ValueKey(expense.id ?? expense.createdAt),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 20),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(Icons.delete_outline, color: Colors.red.shade600),
+              ),
+              confirmDismiss: (_) async {
+                return await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Delete transaction?'),
+                    content: Text(
+                        'Remove "${expense.vendor}" from your expenses?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Delete',
+                            style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              onDismissed: (_) => _deleteExpense(expense),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _TransactionRow(expense: expense),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Summary item ──────────────────────────────────────────────────────────────
+
+class _SummaryItem extends StatelessWidget {
+  const _SummaryItem({
+    required this.label,
+    required this.amount,
+    required this.dotColor,
+    this.onEditTap,
+  });
+
+  final String label;
+  final double amount;
+  final Color dotColor;
+  final VoidCallback? onEditTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration:
+                  BoxDecoration(color: dotColor, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (onEditTap != null) ...[
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: onEditTap,
+                child: Icon(Icons.edit_outlined,
+                    size: 14, color: cs.outline),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '\$${amount.toStringAsFixed(0)}',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: cs.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Donut chart painter ───────────────────────────────────────────────────────
+
+class _DonutPainter extends CustomPainter {
+  const _DonutPainter({
+    required this.spent,
+    required this.total,
+    required this.spentColor,
+    required this.remainColor,
+    required this.trackColor,
+  });
+
+  final double spent;
+  final double total;
+  final Color spentColor;
+  final Color remainColor;
+  final Color trackColor;
+
+  static const _strokeWidth = 18.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width / 2) - _strokeWidth / 2 - 4;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    if (total <= 0) {
+      canvas.drawArc(
+          rect, -math.pi / 2, 2 * math.pi, false, paint..color = trackColor);
+      return;
+    }
+
+    final ratio = (spent / total).clamp(0.0, 1.0);
+    final spentAngle = 2 * math.pi * ratio;
+    final remainAngle = 2 * math.pi * (1 - ratio);
+
+    // Track ring
+    canvas.drawArc(
+        rect, -math.pi / 2, 2 * math.pi, false, paint..color = trackColor);
+
+    // Spent arc
+    if (ratio > 0) {
+      canvas.drawArc(
+          rect, -math.pi / 2, spentAngle, false, paint..color = spentColor);
+    }
+
+    // Remaining arc
+    if (ratio < 1) {
+      canvas.drawArc(rect, -math.pi / 2 + spentAngle, remainAngle, false,
+          paint..color = remainColor);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DonutPainter old) =>
+      old.spent != spent || old.total != total;
+}
+
+// ── Transaction row ───────────────────────────────────────────────────────────
+
+class _TransactionRow extends StatelessWidget {
+  const _TransactionRow({required this.expense});
+
+  final Expense expense;
+
+  static IconData _icon(String category) {
+    switch (category.toLowerCase()) {
+      case 'food':
+      case 'meals & entertainment':
+        return Icons.restaurant_outlined;
+      case 'salary':
+      case 'income':
+        return Icons.attach_money;
+      case 'entertainment':
+        return Icons.movie_outlined;
+      case 'shopping':
+      case 'retail':
+        return Icons.shopping_bag_outlined;
+      case 'transport':
+      case 'transportation':
+        return Icons.directions_car_outlined;
+      case 'utilities':
+        return Icons.bolt_outlined;
+      case 'health':
+      case 'medical':
+        return Icons.favorite_border;
+      default:
+        return Icons.receipt_outlined;
+    }
+  }
+
+  static Color _iconColor(String category) {
+    return const Color(0xFF1C1C1C); // Matches header text — near-black
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final cat = expense.category;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          // Category badge
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.cardChildBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            child: Icon(_icon(cat), color: _iconColor(cat), size: 22),
+          ),
+          const SizedBox(width: 12),
+          // Name + category
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  expense.vendor,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  expense.category,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Amount + date
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '-\$${expense.amount.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                expense.date,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -289,94 +976,64 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage> {
   }
 }
 
-// ── Set Budget Banner ─────────────────────────────────────────────────────────
+// ── Add option tile ───────────────────────────────────────────────────────────
 
-class _SetBudgetBanner extends StatelessWidget {
-  const _SetBudgetBanner({required this.onTap});
+class _AddOptionTile extends StatelessWidget {
+  const _AddOptionTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.savings_outlined, color: colorScheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Set a spending budget',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(color: colorScheme.primary),
-                    ),
-                    Text(
-                      'Track expenses against a monthly or bi-weekly limit',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: colorScheme.primary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Expense Card ──────────────────────────────────────────────────────────────
-
-class _ExpenseCard extends StatelessWidget {
-  const _ExpenseCard({required this.expense, required this.onDelete});
-
-  final Expense expense;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: colorScheme.primaryContainer,
-          child: Icon(Icons.receipt_outlined,
-              color: colorScheme.onPrimaryContainer, size: 20),
-        ),
-        title: Text(expense.vendor, style: theme.textTheme.titleSmall),
-        subtitle: Text(
-          '${expense.category} \u00b7 ${expense.date}',
-          style: theme.textTheme.bodySmall,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
           children: [
-            Text(
-              '\$${expense.amount.toStringAsFixed(2)}',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(color: colorScheme.primary),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
-            const SizedBox(width: 4),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20),
-              onPressed: onDelete,
-              tooltip: 'Delete',
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
+            const Spacer(),
+            Icon(Icons.chevron_right, color: cs.outline),
           ],
         ),
       ),
