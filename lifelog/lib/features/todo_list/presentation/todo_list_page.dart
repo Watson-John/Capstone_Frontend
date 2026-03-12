@@ -17,25 +17,15 @@ class TodoListPage extends StatefulWidget {
 
 class _TodoListPageState extends State<TodoListPage> {
   DateTime _selectedDate = DateTime.now();
-  final ScrollController _dateScrollController = ScrollController();
   List<Todo> _todos = [];
+  bool _isCalendarExpanded = false;
+  late DateTime _calendarViewMonth;
 
   @override
   void initState() {
     super.initState();
+    _calendarViewMonth = DateTime(_selectedDate.year, _selectedDate.month);
     _loadTodos();
-
-    // Scroll so the current date is the first visible item.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_dateScrollController.hasClients) {
-        const double itemWidth = 48.0;
-        final targetScroll = (_selectedDate.day - 1) * itemWidth;
-        _dateScrollController.jumpTo(
-          targetScroll.clamp(
-              0.0, _dateScrollController.position.maxScrollExtent),
-        );
-      }
-    });
   }
 
   Future<void> _loadTodos() async {
@@ -49,7 +39,6 @@ class _TodoListPageState extends State<TodoListPage> {
 
   @override
   void dispose() {
-    _dateScrollController.dispose();
     super.dispose();
   }
 
@@ -67,21 +56,41 @@ class _TodoListPageState extends State<TodoListPage> {
     return '${months[date.month - 1]} ${date.year}';
   }
 
-  Future<void> _selectMonth(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null && picked.month != _selectedDate.month) {
-      setState(() {
-        _selectedDate = DateTime(picked.year, picked.month, 1);
-      });
-      if (_dateScrollController.hasClients) {
-        _dateScrollController.jumpTo(0);
+  void _toggleCalendar() {
+    setState(() {
+      _isCalendarExpanded = !_isCalendarExpanded;
+      if (_isCalendarExpanded) {
+        _calendarViewMonth =
+            DateTime(_selectedDate.year, _selectedDate.month);
       }
-    }
+    });
+  }
+
+  void _prevCalendarMonth() => setState(() {
+        _calendarViewMonth = DateTime(
+            _calendarViewMonth.year, _calendarViewMonth.month - 1);
+      });
+
+  void _nextCalendarMonth() => setState(() {
+        _calendarViewMonth = DateTime(
+            _calendarViewMonth.year, _calendarViewMonth.month + 1);
+      });
+
+  void _onCalendarDayTap(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+      _calendarViewMonth = DateTime(date.year, date.month);
+      _isCalendarExpanded = false;
+    });
+  }
+
+  void _jumpToToday() {
+    final today = DateTime.now();
+    setState(() {
+      _selectedDate = today;
+      _calendarViewMonth = DateTime(today.year, today.month);
+      _isCalendarExpanded = false;
+    });
   }
 
   void _onDateSelected(DateTime date) {
@@ -132,7 +141,7 @@ class _TodoListPageState extends State<TodoListPage> {
           ),
         ),
       ),
-      floatingActionButton: AppFab(onPressed: _navigateToAddTodo),
+      floatingActionButton: AppFab(heroTag: 'todo-fab', onPressed: _navigateToAddTodo),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
@@ -151,40 +160,88 @@ class _TodoListPageState extends State<TodoListPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Month selector
-          GestureDetector(
-            onTap: () => _selectMonth(context),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: cs.primary,
-                borderRadius: BorderRadius.circular(10),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: _toggleCalendar,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: cs.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _getMonthYearString(_selectedDate),
+                        style: TextStyle(
+                          color: cs.onPrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      AnimatedRotation(
+                        turns: _isCalendarExpanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOutCubic,
+                        child: Icon(Icons.keyboard_arrow_down,
+                            color: cs.onPrimary, size: 16),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _getMonthYearString(_selectedDate),
+              const Spacer(),
+              // Today shortcut
+              GestureDetector(
+                onTap: _jumpToToday,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Today',
                     style: TextStyle(
-                      color: cs.onPrimary,
                       fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.w700,
+                      color: cs.primary,
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Icon(Icons.keyboard_arrow_down,
-                      color: cs.onPrimary, size: 16),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
+
+          // Calendar dropdown
+          AnimatedSize(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeInOutCubic,
+            child: _isCalendarExpanded
+                ? _CalendarDropdown(
+                    viewMonth: _calendarViewMonth,
+                    selectedDate: _selectedDate,
+                    todos: _todos,
+                    onPrevMonth: _prevCalendarMonth,
+                    onNextMonth: _nextCalendarMonth,
+                    onDayTap: _onCalendarDayTap,
+                  )
+                : const SizedBox.shrink(),
+          ),
+
           const SizedBox(height: 16),
 
           // Date selector row
           DateSelectorRow(
+            key: ValueKey('${_selectedDate.year}-${_selectedDate.month}'),
             selectedDate: _selectedDate,
             daysInMonth: _daysInMonth,
-            controller: _dateScrollController,
             onDateSelected: _onDateSelected,
           ),
           const SizedBox(height: 20),
@@ -518,72 +575,130 @@ class _TodoListPageState extends State<TodoListPage> {
 
 // ── DateSelectorRow ────────────────────────────────────────────────────────────
 
-class DateSelectorRow extends StatelessWidget {
+class DateSelectorRow extends StatefulWidget {
   const DateSelectorRow({
     super.key,
     required this.selectedDate,
     required this.daysInMonth,
-    required this.controller,
     required this.onDateSelected,
   });
 
   final DateTime selectedDate;
   final int daysInMonth;
-  final ScrollController controller;
   final ValueChanged<DateTime> onDateSelected;
+
+  @override
+  State<DateSelectorRow> createState() => _DateSelectorRowState();
+}
+
+class _DateSelectorRowState extends State<DateSelectorRow> {
+  late final CarouselController _controller;
+
+  static const _kWeekLabels = [
+    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = CarouselController(initialItem: widget.selectedDate.day - 1);
+  }
+
+  @override
+  void didUpdateWidget(DateSelectorRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDate.day != widget.selectedDate.day) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_controller.hasClients) {
+          _controller.animateTo(
+            (widget.selectedDate.day - 1) * 64.0,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _weekLabel(int day) {
+    final dt = DateTime(
+        widget.selectedDate.year, widget.selectedDate.month, day);
+    return _kWeekLabels[dt.weekday - 1];
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return ShaderMask(
-      shaderCallback: (bounds) => const LinearGradient(
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-        colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
-        stops: [0.0, 0.06, 0.88, 1.0],
-      ).createShader(bounds),
-      blendMode: BlendMode.dstIn,
-      child: SingleChildScrollView(
-        controller: controller,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-        child: Row(
-          children: List.generate(daysInMonth, (index) {
-            final day = index + 1;
-            final isSelected = day == selectedDate.day;
-            return GestureDetector(
-              onTap: () => onDateSelected(
-                  DateTime(selectedDate.year, selectedDate.month, day)),
-              child: Container(
-                width: 40,
-                height: 40,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isSelected ? cs.primary : AppTheme.cardChildBg,
-                  border: isSelected ? null : Border.all(color: cs.outlineVariant),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isSelected ? 0.15 : 0.06),
-                      blurRadius: isSelected ? 6 : 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+    return SizedBox(
+      height: 74,
+      child: CarouselView(
+        controller: _controller,
+        itemExtent: 64,
+        shrinkExtent: 44,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        onTap: (index) => widget.onDateSelected(DateTime(
+          widget.selectedDate.year,
+          widget.selectedDate.month,
+          index + 1,
+        )),
+        children: List.generate(widget.daysInMonth, (index) {
+          final day = index + 1;
+          final isSelected = day == widget.selectedDate.day;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutBack,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: isSelected ? cs.primary : AppTheme.cardChildBg,
+              border: isSelected
+                  ? null
+                  : Border.all(color: cs.outlineVariant),
+              boxShadow: [
+                BoxShadow(
+                  color: isSelected
+                      ? cs.primary.withValues(alpha: 0.30)
+                      : Colors.black.withValues(alpha: 0.06),
+                  blurRadius: isSelected ? 8 : 4,
+                  offset: const Offset(0, 2),
                 ),
-                child: Text(
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _weekLabel(day),
+                  style: TextStyle(
+                    color: isSelected
+                        ? cs.onPrimary.withValues(alpha: 0.75)
+                        : cs.onSurfaceVariant,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
                   '$day',
                   style: TextStyle(
                     color: isSelected ? cs.onPrimary : cs.onSurface,
                     fontWeight: FontWeight.w800,
-                    fontSize: 14,
+                    fontSize: 18,
                   ),
                 ),
-              ),
-            );
-          }),
-        ),
+              ],
+            ),
+          );
+        }),
       ),
     );
   }
@@ -737,6 +852,240 @@ class _EmptyTaskState extends StatelessWidget {
             style: TextStyle(color: cs.outline, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── CalendarDropdown ───────────────────────────────────────────────────────────
+
+class _CalendarDropdown extends StatelessWidget {
+  const _CalendarDropdown({
+    required this.viewMonth,
+    required this.selectedDate,
+    required this.todos,
+    required this.onPrevMonth,
+    required this.onNextMonth,
+    required this.onDayTap,
+  });
+
+  final DateTime viewMonth;
+  final DateTime selectedDate;
+  final List<Todo> todos;
+  final VoidCallback onPrevMonth;
+  final VoidCallback onNextMonth;
+  final ValueChanged<DateTime> onDayTap;
+
+  static const _kDayHeaders = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  static const _kMonthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  /// Returns a map of day-of-month → set of statuses for tasks that overlap
+  /// any day in [viewMonth].
+  Map<int, Set<String>> _taskDays(int daysInMonth) {
+    final map = <int, Set<String>>{};
+    for (final todo in todos) {
+      final start = DateTime(
+          todo.startDate.year, todo.startDate.month, todo.startDate.day);
+      final end = DateTime(
+          todo.dueDate.year, todo.dueDate.month, todo.dueDate.day);
+      for (int d = 1; d <= daysInMonth; d++) {
+        final date = DateTime(viewMonth.year, viewMonth.month, d);
+        if (!date.isBefore(start) && !date.isAfter(end)) {
+          map.putIfAbsent(d, () => <String>{}).add(todo.status);
+        }
+      }
+    }
+    return map;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final today = DateTime.now();
+    final todayNorm =
+        DateTime(today.year, today.month, today.day);
+    final selectedNorm = DateTime(
+        selectedDate.year, selectedDate.month, selectedDate.day);
+
+    final firstDay = DateTime(viewMonth.year, viewMonth.month, 1);
+    final daysInMonth =
+        DateTime(viewMonth.year, viewMonth.month + 1, 0).day;
+    // Sunday-first offset: Mon=1..Sun=7 → Sun=0, Mon=1 … Sat=6
+    final startOffset = firstDay.weekday % 7;
+    final taskDays = _taskDays(daysInMonth);
+    final totalCells = startOffset + daysInMonth;
+    final rows = (totalCells / 7).ceil();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      child: Column(
+        children: [
+          // ── Nav header ──────────────────────────────────────────────────
+          Row(
+            children: [
+              _NavButton(
+                icon: Icons.chevron_left,
+                onTap: onPrevMonth,
+              ),
+              Expanded(
+                child: Text(
+                  '${_kMonthNames[viewMonth.month - 1]} ${viewMonth.year}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ),
+              _NavButton(
+                icon: Icons.chevron_right,
+                onTap: onNextMonth,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // ── Day-of-week headers ─────────────────────────────────────────
+          Row(
+            children: _kDayHeaders
+                .map((h) => Expanded(
+                      child: Center(
+                        child: Text(
+                          h,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 4),
+
+          // ── Day grid ────────────────────────────────────────────────────
+          ...List.generate(rows, (row) {
+            return Row(
+              children: List.generate(7, (col) {
+                final cellIndex = row * 7 + col;
+                final day = cellIndex - startOffset + 1;
+
+                if (day < 1 || day > daysInMonth) {
+                  return const Expanded(child: SizedBox(height: 46));
+                }
+
+                final date =
+                    DateTime(viewMonth.year, viewMonth.month, day);
+                final isToday = date == todayNorm;
+                final isSelected = date == selectedNorm;
+                final statuses = taskDays[day];
+
+                // Color logic (today takes precedence)
+                final bgColor = isToday
+                    ? cs.primary
+                    : isSelected
+                        ? cs.primaryContainer
+                        : Colors.transparent;
+                final textColor = isToday
+                    ? cs.onPrimary
+                    : isSelected
+                        ? cs.primary
+                        : cs.onSurface;
+
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => onDayTap(date),
+                    child: SizedBox(
+                      height: 46,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: bgColor,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '$day',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isToday || isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w500,
+                                color: textColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          // Task dots
+                          if (statuses != null)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: _buildDots(statuses),
+                            )
+                          else
+                            const SizedBox(height: 5),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            );
+          }),
+          const SizedBox(height: 4),
+          Divider(color: Theme.of(context).colorScheme.outlineVariant),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildDots(Set<String> statuses) {
+    final colors = <Color>[];
+    if (statuses.contains('To Do')) colors.add(AppTheme.accentAmber);
+    if (statuses.contains('In Progress')) colors.add(const Color(0xFF1F4A7A));
+    if (statuses.contains('Completed')) colors.add(AppTheme.accentGreen);
+    return colors
+        .take(3)
+        .map((c) => Container(
+              width: 5,
+              height: 5,
+              margin: const EdgeInsets.symmetric(horizontal: 1),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: c),
+            ))
+        .toList();
+  }
+}
+
+class _NavButton extends StatelessWidget {
+  const _NavButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 20, color: cs.onSurface),
       ),
     );
   }

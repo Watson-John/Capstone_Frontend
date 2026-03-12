@@ -68,7 +68,7 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
                 ),
               ),
       ),
-      floatingActionButton: AppFab(onPressed: _navigateToAddMood),
+      floatingActionButton: AppFab(heroTag: 'mood-fab', onPressed: _navigateToAddMood),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }

@@ -914,7 +914,7 @@ class _TransactionRow extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AppTheme.cardChildBg,
+              color: AppTheme.cardTotalBg,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: cs.outlineVariant),
             ),
