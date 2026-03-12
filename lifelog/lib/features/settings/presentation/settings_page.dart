@@ -7,12 +7,19 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(
+          'Settings',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: cs.onSurface,
+          ),
+        ),
       ),
       body: const ThemedPageContent(
-        title: 'Settings Page',
         showTextHierarchy: true,
         showColorRoles: true,
       ),

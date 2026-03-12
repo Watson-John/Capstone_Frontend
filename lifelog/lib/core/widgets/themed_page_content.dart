@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 class ThemedPageContent extends StatelessWidget {
   const ThemedPageContent({
     super.key,
-    required this.title,
+    this.title,
     this.showTextHierarchy = false,
     this.showColorRoles = false,
   });
 
-  final String title;
+  final String? title;
   final bool showTextHierarchy;
   final bool showColorRoles;
 
@@ -25,18 +25,19 @@ class ThemedPageContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Card(
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  child: Text(
-                    title,
-                    style: textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.onSurface,
+              if ((title ?? '').isNotEmpty)
+                Card(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    child: Text(
+                      title!,
+                      style: textTheme.titleLarge?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                   ),
                 ),
-              ),
               if (showTextHierarchy) ...[
                 const SizedBox(height: 12),
                 Card(
