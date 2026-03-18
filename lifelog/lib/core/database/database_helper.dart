@@ -83,7 +83,7 @@ class DatabaseHelper {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute('''
-        CREATE TABLE notifications(
+        CREATE TABLE IF NOT EXISTS notifications(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           title TEXT NOT NULL,
           body TEXT NOT NULL,
@@ -95,7 +95,7 @@ class DatabaseHelper {
 
     if (oldVersion < 3) {
       await db.execute('''
-        CREATE TABLE moodLog(
+        CREATE TABLE IF NOT EXISTS moodLog(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           description TEXT NOT NULL,
           mood TEXT NOT NULL,
@@ -106,14 +106,18 @@ class DatabaseHelper {
     }
 
     if (oldVersion < 4) {
-      await db.execute('''
-        ALTER TABLE moodLog ADD COLUMN emoji TEXT DEFAULT '😎'
-      ''');
+      try {
+        await db.execute('''
+          ALTER TABLE moodLog ADD COLUMN emoji TEXT DEFAULT '😎'
+        ''');
+      } catch (_) {
+        // Column already exists — safe to ignore
+      }
     }
 
     if (oldVersion < 5) {
       await db.execute('''
-        CREATE TABLE expenses (
+        CREATE TABLE IF NOT EXISTS expenses (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           amount REAL NOT NULL,
           date TEXT NOT NULL,
@@ -127,7 +131,7 @@ class DatabaseHelper {
 
     if (oldVersion < 6) {
       await db.execute('''
-        CREATE TABLE budgets (
+        CREATE TABLE IF NOT EXISTS budgets (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           limit_amount REAL NOT NULL,
           period TEXT NOT NULL,

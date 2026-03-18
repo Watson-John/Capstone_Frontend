@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/routes/app_routes.dart';
 import '../../../core/widgets/themed_page_content.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -19,9 +20,23 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
       ),
-      body: const ThemedPageContent(
-        showTextHierarchy: true,
-        showColorRoles: true,
+      body: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.waves_rounded, color: cs.primary),
+            title: const Text('M3 Expressive Progress Bar'),
+            subtitle: const Text('Preview the squiggle indicator'),
+            trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            onTap: () => Navigator.pushNamed(context, AppRoutes.squiggleDemo),
+          ),
+          const Divider(height: 1),
+          const Expanded(
+            child: ThemedPageContent(
+              showTextHierarchy: true,
+              showColorRoles: true,
+            ),
+          ),
+        ],
       ),
     );
   }

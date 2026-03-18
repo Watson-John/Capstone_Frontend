@@ -9,6 +9,7 @@ import 'features/onboarding/presentation/onboarding_page.dart';
 import 'features/settings/presentation/settings_page.dart';
 import 'features/todo_list/presentation/add_todo_page.dart';
 import 'features/notifications_reminders/presentation/notifications_page.dart';
+import 'core/widgets/expressive_squiggle_demo.dart';
 
 class LifelogApp extends StatelessWidget {
   const LifelogApp({
@@ -50,6 +51,8 @@ class LifelogApp extends StatelessWidget {
             AppRoutes.addExpense: (context) => const AddExpensePage(),
             AppRoutes.addTodo: (context) => const AddTodoPage(),
             AppRoutes.notifications: (context) => const NotificationsPage(),
+            AppRoutes.squiggleDemo: (context) =>
+                const ExpressiveSquiggleDemoPage(),
           },
         );
       },

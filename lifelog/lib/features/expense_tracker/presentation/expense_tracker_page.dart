@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,10 +9,24 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/expressive_squiggle_progress_bar.dart';
 import '../../../core/widgets/app_page_header.dart';
 import '../data/expense_service.dart';
 import '../domain/models/budget.dart';
 import '../domain/models/expense.dart';
+import 'receipt_detail_page.dart';
+
+// ── Stub receipt (always-visible demo entry) ──────────────────────────────────
+
+const _kStubExpense = Expense(
+  id: null,
+  amount: 147.83,
+  date: 'March 14, 2026',
+  vendor: 'Walmart',
+  category: 'GROCERY',
+  veryfiDocumentId: 'stub-walmart-demo',
+  createdAt: '2026-03-14T00:00:00.000',
+);
 
 // ── Filter period ─────────────────────────────────────────────────────────────
 
@@ -26,7 +42,7 @@ class ExpenseTrackerPage extends StatefulWidget {
 }
 
 class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _service = ExpenseService();
   final _imagePicker = ImagePicker();
 
@@ -35,14 +51,19 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
   bool _isScanning = false;
   bool _isLoading = true;
   bool _isFabMenuOpen = false;
+  double _scanProgress = 0.0;
+  ReceiptScanStage _scanStage = ReceiptScanStage.uploading;
+  Timer? _scanProgressTimer;
 
   _FilterPeriod _selectedFilter = _FilterPeriod.all;
   bool _showAll = false;
 
   static const double _fabMenuGap = 12;
   static const Duration _fabAnimDuration = Duration(milliseconds: 420);
+  static const Duration _scanProgressTick = Duration(milliseconds: 80);
 
   late AnimationController _fabAnim;
+  late AnimationController _scanAnim;
   // Add Manually appears first (bottom item), Scan Receipt appears second (top item)
   late CurvedAnimation _fabAnimAdd;
   late CurvedAnimation _fabAnimScan;
@@ -79,6 +100,10 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
   void initState() {
     super.initState();
     _fabAnim = AnimationController(vsync: this, duration: _fabAnimDuration);
+    _scanAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
     // Bottom action (Add Manually) leads the entrance; top action (Scan) follows.
     _fabAnimAdd = CurvedAnimation(
       parent: _fabAnim,
@@ -98,6 +123,8 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
     _fabAnimAdd.dispose();
     _fabAnimScan.dispose();
     _fabAnim.dispose();
+    _scanAnim.dispose();
+    _scanProgressTimer?.cancel();
     super.dispose();
   }
 
@@ -154,9 +181,19 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
   }
 
   Future<void> _onImageCaptured(XFile image) async {
-    setState(() => _isScanning = true);
+    setState(() {
+      _isScanning = true;
+      _scanStage = ReceiptScanStage.uploading;
+      _scanProgress = 0.0;
+    });
+    _startScanProgressTicker();
     try {
-      final result = await _service.scanReceipt(File(image.path));
+      final result = await _service.scanReceipt(
+        File(image.path),
+        onStageChanged: _handleScanStageChanged,
+        onReceiveProgress: _handleScanReceiveProgress,
+      );
+      _setScanProgress(1.0);
       if (!mounted) return;
       final saved = await Navigator.of(context).pushNamed(
         AppRoutes.addExpense,
@@ -171,7 +208,67 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
       _showError('Something went wrong. Please try again.');
       debugPrint('[ExpenseTrackerPage] scan error: $e');
     } finally {
-      if (mounted) setState(() => _isScanning = false);
+      if (mounted) {
+        _scanProgressTimer?.cancel();
+        setState(() {
+          _isScanning = false;
+          _scanProgress = 0.0;
+          _scanStage = ReceiptScanStage.uploading;
+        });
+      }
+    }
+  }
+
+  void _startScanProgressTicker() {
+    _scanProgressTimer?.cancel();
+    _scanProgressTimer = Timer.periodic(_scanProgressTick, (_) {
+      if (!mounted || !_isScanning) return;
+      final target = _targetProgressForStage(_scanStage);
+      if (_scanProgress >= target) return;
+
+      // Ease toward the active stage target so progress feels alive, not jumpy.
+      final remaining = target - _scanProgress;
+      final next = (_scanProgress + math.max(0.003, remaining * 0.14))
+          .clamp(0.0, 1.0);
+      _setScanProgress(next);
+    });
+  }
+
+  void _handleScanStageChanged(ReceiptScanStage stage) {
+    if (!mounted) return;
+    setState(() => _scanStage = stage);
+
+    final minimum = stage == ReceiptScanStage.uploading
+        ? 0.02
+        : stage == ReceiptScanStage.processing
+            ? 0.35
+            : 0.68;
+    if (_scanProgress < minimum) {
+      _setScanProgress(minimum);
+    }
+  }
+
+  void _handleScanReceiveProgress(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    final mapped = (0.66 + (clamped * 0.34)).clamp(0.66, 1.0);
+    _setScanProgress(mapped);
+  }
+
+  void _setScanProgress(double value) {
+    if (!mounted) return;
+    final next = value.clamp(0.0, 1.0);
+    if ((next - _scanProgress).abs() < 0.001) return;
+    setState(() => _scanProgress = next);
+  }
+
+  double _targetProgressForStage(ReceiptScanStage stage) {
+    switch (stage) {
+      case ReceiptScanStage.uploading:
+        return 0.33;
+      case ReceiptScanStage.processing:
+        return 0.66;
+      case ReceiptScanStage.receiving:
+        return 0.96;
     }
   }
 
@@ -499,27 +596,86 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
                 ),
 
           // Scanning overlay (covers body only; FAB is naturally above)
-          if (_isScanning)
-            Container(
-              color: Colors.black54,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(color: Colors.white),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Scanning receipt\u2026',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          if (_isScanning) _buildScanningOverlay(context),
         ],
+      ),
+    );
+  }
+
+  // ── Scanning overlay ─────────────────────────────────────────────────────
+
+  Widget _buildScanningOverlay(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    const steps = ['Scanning receipt', 'Analyzing image', 'Extracting data'];
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+      child: Container(
+        color: cs.scrim.withValues(alpha: 0.45),
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _scanAnim,
+            builder: (context, _) {
+              final progress = _scanProgress;
+              final stepIndex = _scanStage == ReceiptScanStage.uploading
+                  ? 0
+                  : _scanStage == ReceiptScanStage.processing
+                      ? 1
+                      : 2;
+              // Dots still cycle via the looping _scanAnim.
+              final dotCount = (_scanAnim.value * 3).floor() % 4;
+              final dots = '.' * dotCount;
+              final pulse = 0.92 + 0.08 * math.sin(_scanAnim.value * 2 * math.pi);
+              return Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                color: cs.surfaceContainerHigh,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 36),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Transform.scale(
+                        scale: pulse,
+                        child: Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.document_scanner_rounded,
+                            size: 36,
+                            color: cs.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: 220,
+                        child: ExpressiveSquiggleProgressBar(
+                          value: progress,
+                          color: cs.primary,
+                          trackColor: cs.primaryContainer,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        '${steps[stepIndex]}$dots',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -661,6 +817,37 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
         ),
         const SizedBox(height: 12),
 
+        // Demo stub entry — always shown so the detail page can be tested
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 2, bottom: 6),
+                child: Text(
+                  'Demo receipt',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                ),
+              ),
+              _TransactionRow(
+                expense: _kStubExpense,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const ReceiptDetailPage(expense: _kStubExpense),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         // List or empty state
         if (visible.isEmpty)
           Padding(
@@ -726,7 +913,15 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
               onDismissed: (_) => _deleteExpense(expense),
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _TransactionRow(expense: expense),
+                child: _TransactionRow(
+                  expense: expense,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReceiptDetailPage(expense: expense),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -862,9 +1057,10 @@ class _DonutPainter extends CustomPainter {
 // ── Transaction row ───────────────────────────────────────────────────────────
 
 class _TransactionRow extends StatelessWidget {
-  const _TransactionRow({required this.expense});
+  const _TransactionRow({required this.expense, required this.onTap});
 
   final Expense expense;
+  final VoidCallback onTap;
 
   static IconData _icon(String category) {
     switch (category.toLowerCase()) {
@@ -892,85 +1088,98 @@ class _TransactionRow extends StatelessWidget {
     }
   }
 
-  static Color _iconColor(String category) {
-    return const Color(0xFF1C1C1C); // Matches header text — near-black
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final cat = expense.category;
+    final isScanned = expense.veryfiDocumentId != null;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainer,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          // Category badge
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.cardTotalBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: cs.outlineVariant),
-            ),
-            child: Icon(_icon(cat), color: _iconColor(cat), size: 22),
-          ),
-          const SizedBox(width: 12),
-          // Name + category
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  expense.vendor,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
+        child: Stack(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainer,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  // Category badge
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardTotalBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: cs.outlineVariant),
+                    ),
+                    child: Icon(_icon(cat), color: const Color(0xFF1C1C1C), size: 22),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  expense.category,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
+                  const SizedBox(width: 12),
+                  // Vendor + date
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          expense.vendor,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          expense.date,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: cs.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  // Amount
+                  Text(
+                    '-\$${expense.amount.toStringAsFixed(2)}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          // Amount + date
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '-\$${expense.amount.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
+            // Source badge — top-right corner
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  isScanned
+                      ? Icons.document_scanner_outlined
+                      : Icons.edit_outlined,
+                  size: 14,
+                  color: cs.primary,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                expense.date,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1040,3 +1249,4 @@ class _AddOptionTile extends StatelessWidget {
     );
   }
 }
+

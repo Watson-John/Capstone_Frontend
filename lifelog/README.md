@@ -32,6 +32,32 @@ lib/features/<feature_name>/
 	data/
 ```
 
+## Firebase setup (required for notifications)
+
+This app uses Firebase Cloud Messaging for push notifications.
+The Android build requires a `google-services.json` config file.
+
+1. Go to the [Firebase Console](https://console.firebase.google.com/)
+2. Select the **lifelog-capstone** project
+3. Navigate to **Project Settings > General**
+4. Under **Your apps**, find the Android app (`com.example.lifelog`)
+5. Download `google-services.json`
+6. Place it at `android/app/google-services.json`
+
+> **Note:** This file is listed in `.gitignore` and must never be committed.
+
+## Environment variables
+
+Copy the example and fill in values:
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+- `BACKEND_URL` — URL of the Django backend (default: `http://10.0.2.2:8001` for Android emulator)
+- `PROTOTYPE_APP_KEY` — Authentication key for expense scanning API
+
 ## Run locally
 
 ```bash
