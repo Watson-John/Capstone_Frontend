@@ -3,6 +3,8 @@ import 'package:path/path.dart';
 
 import '../../features/expense_tracker/domain/models/expense.dart';
 import '../../features/expense_tracker/domain/models/budget.dart';
+import '../../features/expense_tracker/domain/models/receipt_line_item.dart';
+import '../../features/expense_tracker/domain/models/user_alias.dart';
 import '../../features/todo_list/domain/models/todo_model.dart';
 import '../../features/notifications_reminders/domain/models/in_app_notification.dart';
 import '../../features/mood_logger/domain/models/mood_log.dart';
@@ -24,9 +26,12 @@ class DatabaseHelper {
     final path = join(dbPath, 'lifelog.db');
     return openDatabase(
       path,
-      version: 6,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
     );
   }
 
@@ -78,6 +83,29 @@ class DatabaseHelper {
         emoji TEXT NOT NULL
       )
     ''');
+    await db.execute('''
+      CREATE TABLE receipt_line_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        expense_id INTEGER NOT NULL,
+        receipt_acronym TEXT NOT NULL,
+        decoded_name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        price REAL NOT NULL,
+        scan_order INTEGER NOT NULL,
+        FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE user_aliases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        receipt_acronym TEXT NOT NULL UNIQUE,
+        decoded_name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await _seedUserAliases(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -139,6 +167,95 @@ class DatabaseHelper {
         )
       ''');
     }
+
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS receipt_line_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          expense_id INTEGER NOT NULL,
+          receipt_acronym TEXT NOT NULL,
+          decoded_name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          price REAL NOT NULL,
+          scan_order INTEGER NOT NULL,
+          FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS user_aliases (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          receipt_acronym TEXT NOT NULL UNIQUE,
+          decoded_name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+      await _seedUserAliases(db);
+    }
+
+    if (oldVersion < 8) {
+      // Force-update seed aliases with corrected proper-case display names.
+      await _reseedUserAliases(db);
+    }
+  }
+
+  // --- Seed aliases --------------------------------------------------------
+
+  static const _kSeedAliases = <(String, String, String)>[
+    // (receipt_acronym, decoded_name, category)
+    ('BETTER THAN BOUIL',  'Better Than Bouillon',        'GROCERY'),
+    ('BY PREM APLWD BAC',  'Premium Applewood Bacon',     'GROCERY'),
+    ('CARROTS 2LB',        'Carrots 2lb',                 'GROCERY'),
+    ('CENTO TOMATO PAST',  'Cento Tomato Paste',          'GROCERY'),
+    ('CHOICE BNLS CHUCK',  'Ground Chuck',                'GROCERY'),
+    ('DORITOS DINAMITA',   'Doritos Dinamita',            'GROCERY'),
+    ('FCL BAY LEAVES',     'Bay Leaves',                  'GROCERY'),
+    ('FCL HZLNT CHOC SP',  'Hazelnut Chocolate Spread',   'GROCERY'),
+    ('FCL POPCORN MICRO',  'Microwave Popcorn',           'GROCERY'),
+    ('FRANKS RED HOT SA',  'Frank\'s Red Hot Sauce',      'GROCERY'),
+    ('GOYA RED CKING WI',  'Goya Red Cooking Wine',       'GROCERY'),
+    ('RED POTATO',         'Red Potato',                  'GROCERY'),
+    ('VIDALIA ONIONS',     'Vidalia Onions',              'GROCERY'),
+  ];
+
+  Future<void> _seedUserAliases(Database db) async {
+    final now = DateTime.now().toIso8601String();
+    final batch = db.batch();
+    for (final (acronym, name, category) in _kSeedAliases) {
+      batch.insert(
+        'user_aliases',
+        {
+          'receipt_acronym': acronym,
+          'decoded_name': name,
+          'category': category,
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// Re-apply seed aliases using REPLACE so stale entries are overwritten.
+  Future<void> _reseedUserAliases(Database db) async {
+    final now = DateTime.now().toIso8601String();
+    final batch = db.batch();
+    for (final (acronym, name, category) in _kSeedAliases) {
+      batch.insert(
+        'user_aliases',
+        {
+          'receipt_acronym': acronym,
+          'decoded_name': name,
+          'category': category,
+          'created_at': now,
+          'updated_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   // --- Todos Operations ---
@@ -297,5 +414,118 @@ class DatabaseHelper {
     // Only one active budget — replace any existing row.
     await db.delete('budgets');
     return db.insert('budgets', budget.toMap());
+  }
+
+  // --- Receipt Line Items Operations ---
+
+  Future<int> insertLineItem(ReceiptLineItem item) async {
+    final db = await database;
+    return db.insert('receipt_line_items', item.toMap());
+  }
+
+  Future<void> insertLineItems(List<ReceiptLineItem> items) async {
+    final db = await database;
+    final batch = db.batch();
+    for (final item in items) {
+      batch.insert('receipt_line_items', item.toMap());
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<List<ReceiptLineItem>> getLineItemsForExpense(int expenseId) async {
+    final db = await database;
+    final maps = await db.query(
+      'receipt_line_items',
+      where: 'expense_id = ?',
+      whereArgs: [expenseId],
+      orderBy: 'scan_order ASC',
+    );
+    return maps.map(ReceiptLineItem.fromMap).toList();
+  }
+
+  Future<int> updateLineItem(ReceiptLineItem item) async {
+    final db = await database;
+    return db.update(
+      'receipt_line_items',
+      item.toMap(),
+      where: 'id = ?',
+      whereArgs: [item.id],
+    );
+  }
+
+  /// Update all line items in an expense that share the same receipt_acronym.
+  Future<int> updateLineItemsByAcronym({
+    required int expenseId,
+    required String receiptAcronym,
+    required String newDecodedName,
+    required String newCategory,
+  }) async {
+    final db = await database;
+    return db.update(
+      'receipt_line_items',
+      {
+        'decoded_name': newDecodedName,
+        'category': newCategory,
+      },
+      where: 'expense_id = ? AND receipt_acronym = ?',
+      whereArgs: [expenseId, receiptAcronym],
+    );
+  }
+
+  Future<List<ReceiptLineItem>> getLineItemsForExpenses(
+      List<int> expenseIds) async {
+    if (expenseIds.isEmpty) return [];
+    final db = await database;
+    final placeholders = List.filled(expenseIds.length, '?').join(',');
+    final maps = await db.query(
+      'receipt_line_items',
+      where: 'expense_id IN ($placeholders)',
+      whereArgs: expenseIds,
+    );
+    return maps.map(ReceiptLineItem.fromMap).toList();
+  }
+
+  Future<int> deleteLineItemsForExpense(int expenseId) async {
+    final db = await database;
+    return db.delete(
+      'receipt_line_items',
+      where: 'expense_id = ?',
+      whereArgs: [expenseId],
+    );
+  }
+
+  // --- User Alias Operations ---
+
+  /// Insert or replace an alias (newest wins via UNIQUE on receipt_acronym).
+  Future<int> upsertUserAlias(UserAlias alias) async {
+    final db = await database;
+    return db.insert(
+      'user_aliases',
+      alias.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<UserAlias?> getUserAlias(String normalizedAcronym) async {
+    final db = await database;
+    final maps = await db.query(
+      'user_aliases',
+      where: 'receipt_acronym = ?',
+      whereArgs: [normalizedAcronym],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return UserAlias.fromMap(maps.first);
+  }
+
+  Future<List<UserAlias>> getAllUserAliases() async {
+    final db = await database;
+    final maps = await db.query('user_aliases', orderBy: 'updated_at DESC');
+    return maps.map(UserAlias.fromMap).toList();
+  }
+
+  Future<int> deleteUserAlias(int id) async {
+    final db = await database;
+    return db.delete('user_aliases', where: 'id = ?', whereArgs: [id]);
   }
 }

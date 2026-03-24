@@ -37,5 +37,6 @@ flutter:
   uses-material-design: true
   assets:
     - .env
-    - assets/models/product_classifier.tflite
-    - assets/models/vocab.json
+    # Placeholder — tflite model files not yet bundled:
+    # - assets/models/product_classifier.tflite
+    # - assets/models/vocab.json

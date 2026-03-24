@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../core/widgets/dashed_border_painter.dart';
 import '../domain/models/mood_log.dart';
 
 class AddMoodPage extends StatefulWidget {
@@ -416,7 +417,7 @@ class _AddMoodPageState extends State<AddMoodPage> {
                       // Dashed border visual
                       Positioned.fill(
                         child: CustomPaint(
-                          painter: _DashedRectPainter(color: cs.primary),
+                          painter: DashedBorderPainter(color: cs.primary, strokeWidth: 2, borderRadius: 12),
                         ),
                       ),
                       Padding(
@@ -567,51 +568,3 @@ class _AddMoodPageState extends State<AddMoodPage> {
   }
 }
 
-// Painter for dashed border
-class _DashedRectPainter extends CustomPainter {
-  final Color color;
-
-  const _DashedRectPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    const dashWidth = 8.0;
-    const dashSpace = 6.0;
-
-    // Draw top
-    double startX = 0;
-    while (startX < size.width) {
-      canvas.drawLine(Offset(startX, 0), Offset(startX + dashWidth, 0), paint);
-      startX += dashWidth + dashSpace;
-    }
-    // Draw right
-    double startY = 0;
-    while (startY < size.height) {
-      canvas.drawLine(Offset(size.width, startY),
-          Offset(size.width, startY + dashWidth), paint);
-      startY += dashWidth + dashSpace;
-    }
-    // Draw bottom
-    startX = size.width;
-    while (startX > 0) {
-      canvas.drawLine(Offset(startX, size.height),
-          Offset(startX - dashWidth, size.height), paint);
-      startX -= dashWidth + dashSpace;
-    }
-    // Draw left
-    startY = size.height;
-    while (startY > 0) {
-      canvas.drawLine(Offset(0, startY), Offset(0, startY - dashWidth), paint);
-      startY -= dashWidth + dashSpace;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedRectPainter oldDelegate) =>
-      oldDelegate.color != color;
-}

@@ -6,8 +6,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+import '../../../core/database/database_helper.dart';
+import '../domain/models/category_constants.dart';
+import '../domain/models/expense.dart';
 import '../domain/models/receipt_line_item.dart';
 import '../domain/models/scan_result.dart';
+import '../domain/models/user_alias.dart';
 
 class ExpenseScanException implements Exception {
   const ExpenseScanException(this.message);
@@ -163,25 +167,243 @@ class ExpenseService {
     return const ScanQuota(limit: 100, used: 0, remaining: 100, monthKey: '');
   }
 
+  /// Load line items for an expense. If already persisted in local DB, return
+  /// those (preserving user corrections). Otherwise, fetch from API/stub,
+  /// run through the categorization pipeline, persist, and return.
   Future<List<ReceiptLineItem>> getReceiptLineItems(
+    String? veryfiDocumentId, {
+    int? expenseId,
+  }) async {
+    final db = DatabaseHelper();
+
+    // 1. If we have an expenseId, check for persisted line items first.
+    if (expenseId != null) {
+      final persisted = await db.getLineItemsForExpense(expenseId);
+      if (persisted.isNotEmpty) {
+        final hasBasicStale = persisted.any((item) =>
+            !ExpenseCategories.all.contains(item.category) ||
+            item.decodedName.toUpperCase() ==
+                item.receiptAcronym.toUpperCase());
+        final isStale =
+            hasBasicStale || await _hasAliasMismatch(db, persisted);
+        if (!isStale) return persisted;
+        // Stale items (bad category, alias not applied, or alias updated) — delete and re-fetch.
+        await db.deleteLineItemsForExpense(expenseId);
+      }
+    }
+
+    // 2. Fetch raw items from API (currently stub).
+    final rawItems = await _fetchRawLineItems(veryfiDocumentId);
+
+    // 3. Run each item through the categorization pipeline.
+    final categorized = <ReceiptLineItem>[];
+    for (final item in rawItems) {
+      final resolved = await _categorize(item);
+      categorized.add(resolved.copyWith(expenseId: expenseId));
+    }
+
+    // 4. Persist if we have an expenseId.
+    if (expenseId != null) {
+      await db.insertLineItems(categorized);
+      // Re-fetch to get DB-assigned IDs.
+      return db.getLineItemsForExpense(expenseId);
+    }
+
+    return categorized;
+  }
+
+  /// Fetch raw line items from the backend for a given veryfiDocumentId.
+  /// Falls back to an empty list if the document is not found or the call fails.
+  Future<List<ReceiptLineItem>> _fetchRawLineItems(
       String? veryfiDocumentId) async {
-    // Stub — replace with real API call when backend endpoint is ready.
-    return const [
-      ReceiptLineItem(receiptAcronym: 'GV WHL MLK 1G',  decodedName: 'Great Value Whole Milk 1 Gallon',    category: 'GROCERY',      price: 4.27,  scanOrder: 1),
-      ReceiptLineItem(receiptAcronym: 'BNS CHKN BRST',  decodedName: 'Boneless Chicken Breast',            category: 'GROCERY',      price: 9.46,  scanOrder: 2),
-      ReceiptLineItem(receiptAcronym: 'EQ TOOTHPST',    decodedName: 'Equate Toothpaste',                  category: 'BEAUTY_CARE',  price: 2.97,  scanOrder: 3),
-      ReceiptLineItem(receiptAcronym: 'GV DISH SOAP',   decodedName: 'Great Value Dish Soap',              category: 'HOUSEHOLD',    price: 3.48,  scanOrder: 4),
-      ReceiptLineItem(receiptAcronym: 'ADVIL 200CT',    decodedName: 'Advil Ibuprofen 200 Count',          category: 'PHARMACY',     price: 11.97, scanOrder: 5),
-      ReceiptLineItem(receiptAcronym: 'LEGO CITY SET',  decodedName: 'LEGO City Police Set',               category: 'KIDS',         price: 24.99, scanOrder: 6),
-      ReceiptLineItem(receiptAcronym: 'COMP NOTEBOOK',  decodedName: 'Composition Notebook 5-pk',          category: 'BOOKS_OFFICE', price: 6.44,  scanOrder: 7),
-      ReceiptLineItem(receiptAcronym: 'USB-C CBL 6FT',  decodedName: 'USB-C Charging Cable 6ft',           category: 'ELECTRONICS',  price: 12.88, scanOrder: 8),
-      ReceiptLineItem(receiptAcronym: 'THRO PILLOW',    decodedName: 'Decorative Throw Pillow',            category: 'HOME_DECOR',   price: 14.97, scanOrder: 9),
-      ReceiptLineItem(receiptAcronym: 'ROTIS CHKN',     decodedName: 'Rotisserie Chicken',                 category: 'DINING',       price: 6.98,  scanOrder: 10),
-      ReceiptLineItem(receiptAcronym: 'DOG TRTS LRG',   decodedName: 'Milk-Bone Large Dog Treats',         category: 'PET_SUPPLIES', price: 8.97,  scanOrder: 11),
-      ReceiptLineItem(receiptAcronym: 'PRM UNLD 87',    decodedName: 'Premium Unleaded Fuel',              category: 'FUEL_AUTO',    price: 18.00, scanOrder: 12),
-      ReceiptLineItem(receiptAcronym: 'SAMSNG CHRG',    decodedName: 'Samsung Phone Charger',              category: 'ELECTRONICS',  price: 9.88,  scanOrder: 13),
-      ReceiptLineItem(receiptAcronym: 'GV LAUN DET',    decodedName: 'Great Value Laundry Detergent',      category: 'HOUSEHOLD',    price: 7.97,  scanOrder: 14),
-      ReceiptLineItem(receiptAcronym: 'TAX',            decodedName: 'Sales Tax',                          category: 'FEES_TAX',     price: 4.60,  scanOrder: 15),
-    ];
+    if (veryfiDocumentId == null || veryfiDocumentId.isEmpty) return [];
+
+    final url = Uri.parse(
+        '$_baseUrl/api/expenses/receipts/$veryfiDocumentId/line-items/');
+    debugPrint('[ExpenseService] GET $url');
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {'X-Prototype-App-Key': _appKey},
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final rawItems = data['lineItems'] as List<dynamic>? ?? [];
+        return rawItems.map((e) {
+          final m = e as Map<String, dynamic>;
+          return ReceiptLineItem(
+            receiptAcronym: m['receiptAcronym'] as String? ?? '',
+            decodedName: m['decodedName'] as String? ?? '',
+            category: m['category'] as String? ?? '',
+            price: (m['price'] as num?)?.toDouble() ?? 0.0,
+            scanOrder: (m['scanOrder'] as num?)?.toInt() ?? 0,
+          );
+        }).toList();
+      }
+
+      debugPrint('[ExpenseService] line-items status=${response.statusCode}');
+    } catch (e) {
+      debugPrint('[ExpenseService] line-items fetch error: $e');
+    }
+    return [];
+  }
+
+  // ── Save with line items ─────────────────────────────────────────────────────
+
+  /// Persist an expense and immediately store its line items (from a ScanResult).
+  /// Runs each item through the categorization pipeline before inserting.
+  /// Returns the saved Expense with its DB-assigned id.
+  Future<Expense> saveExpenseWithLineItems({
+    required Expense expense,
+    required List<ReceiptLineItem> rawLineItems,
+  }) async {
+    final db = DatabaseHelper();
+
+    // 1. Insert the expense and get the auto-assigned id.
+    final expenseId = await db.insertExpense(expense);
+    final savedExpense = Expense(
+      id: expenseId,
+      amount: expense.amount,
+      date: expense.date,
+      vendor: expense.vendor,
+      category: expense.category,
+      veryfiDocumentId: expense.veryfiDocumentId,
+      createdAt: expense.createdAt,
+    );
+
+    // 2. Run line items through categorization pipeline and persist.
+    if (rawLineItems.isNotEmpty) {
+      final categorized = <ReceiptLineItem>[];
+      for (final item in rawLineItems) {
+        final resolved = await _categorize(item);
+        categorized.add(resolved.copyWith(expenseId: expenseId));
+      }
+      await db.insertLineItems(categorized);
+    }
+
+    return savedExpense;
+  }
+
+  // ── Categorization pipeline ─────────────────────────────────────────────────
+
+  /// Pipeline: global alias → user alias → (future: fuzzy) → existing → UNCATEGORIZED.
+  Future<ReceiptLineItem> _categorize(ReceiptLineItem item) async {
+    final normalized = UserAlias.normalizeAcronym(item.receiptAcronym);
+
+    // Step 1: Global alias (stub — always null for now).
+    final globalResult = await _resolveGlobalAlias(normalized);
+    if (globalResult != null) {
+      return item.copyWith(
+        decodedName: globalResult.decodedName,
+        category: globalResult.category,
+      );
+    }
+
+    // Step 2: User alias.
+    final userResult = await _resolveUserAlias(normalized);
+    if (userResult != null) {
+      return item.copyWith(
+        decodedName: userResult.decodedName,
+        category: userResult.category,
+      );
+    }
+
+    // Step 3: Future — fuzzy matching placeholder.
+    // final fuzzyResult = await _resolveFuzzyAlias(normalized);
+    // if (fuzzyResult != null) return item.copyWith(...);
+
+    final casedName = _toProperCase(item.decodedName);
+
+    // Step 4: Only keep the category if it is a recognized app category.
+    if (ExpenseCategories.all.contains(item.category)) {
+      return item.copyWith(decodedName: casedName);
+    }
+
+    // Step 5: Nothing confident — mark UNCATEGORIZED.
+    return item.copyWith(
+        decodedName: casedName, category: ExpenseCategories.uncategorized);
+  }
+
+  /// Returns true if any persisted item has a user alias whose decoded name
+  /// differs from what is stored — meaning the alias was updated after the
+  /// item was last categorized.
+  Future<bool> _hasAliasMismatch(
+      DatabaseHelper db, List<ReceiptLineItem> items) async {
+    for (final item in items) {
+      final alias =
+          await db.getUserAlias(UserAlias.normalizeAcronym(item.receiptAcronym));
+      if (alias != null && alias.decodedName != item.decodedName) return true;
+    }
+    return false;
+  }
+
+  /// Convert an all-uppercase string to Title Case.
+  /// Strings that already contain lowercase letters are returned unchanged.
+  String _toProperCase(String text) {
+    if (text != text.toUpperCase()) return text;
+    return text.toLowerCase().split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1);
+    }).join(' ');
+  }
+
+  /// Global/preloaded alias stub — returns null for now.
+  /// Future: load from bundled CSV asset and search.
+  Future<({String decodedName, String category})?> _resolveGlobalAlias(
+      String normalized) async {
+    return null;
+  }
+
+  /// User alias lookup — queries the user_aliases table.
+  Future<({String decodedName, String category})?> _resolveUserAlias(
+      String normalized) async {
+    final alias = await DatabaseHelper().getUserAlias(normalized);
+    if (alias == null) return null;
+    return (decodedName: alias.decodedName, category: alias.category);
+  }
+
+  // ── Recategorization ────────────────────────────────────────────────────────
+
+  /// Recategorize a line item and optionally save it as a user alias.
+  /// Propagates the change to all line items in the same receipt that share
+  /// the same receiptAcronym. Returns the updated full item list.
+  Future<List<ReceiptLineItem>> recategorizeLineItem({
+    required ReceiptLineItem item,
+    required String newDecodedName,
+    required String newCategory,
+    required bool saveAsAlias,
+  }) async {
+    final db = DatabaseHelper();
+    final normalized = UserAlias.normalizeAcronym(item.receiptAcronym);
+
+    // 1. If saveAsAlias, upsert into user_aliases (newest wins).
+    if (saveAsAlias) {
+      final now = DateTime.now().toIso8601String();
+      final alias = UserAlias(
+        receiptAcronym: normalized,
+        decodedName: newDecodedName,
+        category: newCategory,
+        createdAt: now,
+        updatedAt: now,
+      );
+      await db.upsertUserAlias(alias);
+    }
+
+    // 2. Propagate to all line items with same acronym in this receipt.
+    if (item.expenseId != null) {
+      await db.updateLineItemsByAcronym(
+        expenseId: item.expenseId!,
+        receiptAcronym: item.receiptAcronym,
+        newDecodedName: newDecodedName,
+        newCategory: newCategory,
+      );
+
+      // 3. Re-fetch the full receipt to get updated state.
+      return db.getLineItemsForExpense(item.expenseId!);
+    }
+
+    return [];
   }
 }

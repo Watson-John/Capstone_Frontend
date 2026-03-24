@@ -23,6 +23,18 @@ class SettingsPage extends StatelessWidget {
       body: Column(
         children: [
           ListTile(
+            leading: Icon(Icons.label_outline, color: cs.primary),
+            title: const Text('Receipt Aliases'),
+            subtitle: const Text('Manage saved item name mappings'),
+            trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Alias management coming soon')),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
             leading: Icon(Icons.waves_rounded, color: cs.primary),
             title: const Text('M3 Expressive Progress Bar'),
             subtitle: const Text('Preview the squiggle indicator'),

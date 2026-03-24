@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../core/widgets/dashed_border_painter.dart';
 import '../domain/models/todo_model.dart';
 
 class AddTodoPage extends StatefulWidget {
@@ -593,41 +593,3 @@ class _AddTodoPageState extends State<AddTodoPage> {
   }
 }
 
-// Custom Painter to draw dashed borders around rounded rectangles
-class DashedBorderPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final double gap;
-
-  DashedBorderPainter(
-      {this.color = Colors.black, this.strokeWidth = 1.0, this.gap = 5.0});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    var paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-
-    var path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-          Rect.fromLTWH(0, 0, size.width, size.height),
-          const Radius.circular(12)));
-
-    PathMetrics pathMetrics = path.computeMetrics();
-    Path dashedPath = Path();
-    for (PathMetric pathMetric in pathMetrics) {
-      double distance = 0.0;
-      while (distance < pathMetric.length) {
-        dashedPath.addPath(
-            pathMetric.extractPath(distance, distance + gap * 1.5),
-            Offset.zero);
-        distance += gap * 3;
-      }
-    }
-    canvas.drawPath(dashedPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

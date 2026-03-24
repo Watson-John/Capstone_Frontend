@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_theme.dart';
-
 import '../../../core/database/database_helper.dart';
 import '../../../core/services/notification_service.dart';
 import '../../expense_tracker/domain/models/expense.dart';
 import '../../expense_tracker/domain/models/budget.dart';
 import '../../mood_logger/domain/models/mood_log.dart';
 import '../../todo_list/domain/models/todo_model.dart';
+import 'widgets/dashboard_stat_card.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -149,7 +149,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
+          child: DashboardStatCard(
             icon: Icons.checklist_rounded,
             label: 'Active Tasks',
             value: '$_todoCount',
@@ -159,7 +159,7 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _StatCard(
+          child: DashboardStatCard(
             icon: Icons.account_balance_wallet_outlined,
             label: 'Spent',
             value: '\$${_totalSpent.toStringAsFixed(0)}',
@@ -169,7 +169,7 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _StatCard(
+          child: DashboardStatCard(
             icon: Icons.mood_outlined,
             label: 'Last Mood',
             value: moodDisplay,
@@ -232,62 +232,3 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-// ── Stat card ──────────────────────────────────────────────────────────────────
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.accentColor,
-    this.iconColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color accentColor;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainer,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: iconColor != null ? accentColor : accentColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: cs.onSurface, size: 20),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: cs.onSurface,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
-    );
-  }
-}
