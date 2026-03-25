@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:permission_handler/permission_handler.dart';
+
 import 'app.dart';
 import 'core/routes/app_routes.dart';
 import 'core/services/notification_service.dart';
@@ -50,6 +52,9 @@ void main() async {
     final notificationService = NotificationService();
     // Do not await this so it doesn't block runApp if backend is slow/unreachable
     notificationService.initialize();
+
+    // Request camera and photo library permissions alongside notifications
+    await [Permission.camera, Permission.photos].request();
   } catch (e) {
     debugPrint(
         "Firebase init error. Ensure native configs or flutterfire configure are setup: $e");

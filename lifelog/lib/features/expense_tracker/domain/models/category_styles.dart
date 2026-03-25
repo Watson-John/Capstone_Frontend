@@ -23,6 +23,7 @@ const Map<String, CategoryStyle> kCategoryStyles = {
   'FEES_TAX':       CategoryStyle(background: Color(0xFFD8DDE5), foreground: Color(0xFF4A5A6E)),
   'OTHER':          CategoryStyle(background: Color(0xFFE0DDD8), foreground: Color(0xFF5A5550)),
   'UNCATEGORIZED':  CategoryStyle(background: Color(0xFFFFF3E0), foreground: Color(0xFFE65100)),
+  'MIXED':          CategoryStyle(background: Color(0xFFE8EAF0), foreground: Color(0xFF4A5268)),
 };
 
 CategoryStyle styleForCategory(String category) =>

@@ -10,12 +10,14 @@ class ReceiptItemsList extends StatelessWidget {
     required this.sortedCategories,
     required this.selectedCategories,
     required this.onRecategorize,
+    this.onBulkCategorize,
   });
 
   final List<ReceiptLineItem> items;
   final List<MapEntry<String, double>> sortedCategories;
   final Set<String> selectedCategories;
   final ValueChanged<ReceiptLineItem> onRecategorize;
+  final VoidCallback? onBulkCategorize;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +53,9 @@ class ReceiptItemsList extends StatelessWidget {
               final categoryTotal =
                   catItems.fold(0.0, (s, i) => s + i.price);
 
+              final isOnlyUncategorized = catEntry.key == 'UNCATEGORIZED' &&
+                  sortedCategories.length == 1;
+
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -63,30 +68,52 @@ class ReceiptItemsList extends StatelessWidget {
                           color: style.background,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                formatCategoryLabel(catEntry.key),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelLarge
-                                    ?.copyWith(
-                                      color: cs.onSurface,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                            ),
-                            Text(
-                              '\$${categoryTotal.toStringAsFixed(2)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
-                                  ?.copyWith(
-                                    color: cs.onSurfaceVariant,
+                            Row(
+                              children: [
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    formatCategoryLabel(catEntry.key),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(
+                                          color: cs.onSurface,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                   ),
+                                ),
+                                Text(
+                                  '\$${categoryTotal.toStringAsFixed(2)}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelLarge
+                                      ?.copyWith(
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
                             ),
+                            if (isOnlyUncategorized &&
+                                onBulkCategorize != null) ...[
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                onPressed: onBulkCategorize,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: style.foreground,
+                                  side: BorderSide(color: style.foreground),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 8, horizontal: 12),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                icon: const Icon(Icons.bolt, size: 16),
+                                label: const Text('Categorize all line items'),
+                              ),
+                            ],
                           ],
                         ),
                       ),

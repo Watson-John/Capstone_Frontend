@@ -472,6 +472,17 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> updateAllLineItemCategories(
+      int expenseId, String newCategory) async {
+    final db = await database;
+    await db.update(
+      'receipt_line_items',
+      {'category': newCategory},
+      where: 'expense_id = ?',
+      whereArgs: [expenseId],
+    );
+  }
+
   Future<List<ReceiptLineItem>> getLineItemsForExpenses(
       List<int> expenseIds) async {
     if (expenseIds.isEmpty) return [];

@@ -11,6 +11,7 @@ class ExpenseTransactionsSection extends StatelessWidget {
     required this.onToggleShowAll,
     required this.onDelete,
     required this.onTap,
+    this.categoriesByExpenseId = const {},
   });
 
   final List<Expense> expenses;
@@ -18,6 +19,7 @@ class ExpenseTransactionsSection extends StatelessWidget {
   final VoidCallback onToggleShowAll;
   final ValueChanged<Expense> onDelete;
   final ValueChanged<Expense> onTap;
+  final Map<int, Set<String>> categoriesByExpenseId;
 
   @override
   Widget build(BuildContext context) {
@@ -91,45 +93,48 @@ class ExpenseTransactionsSection extends StatelessWidget {
           )
         else
           ...visible.map(
-            (expense) => Dismissible(
-              key: ValueKey(expense.id ?? expense.createdAt),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 20),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade100,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(Icons.delete_outline, color: Colors.red.shade600),
-              ),
-              confirmDismiss: (_) async {
-                return await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Delete transaction?'),
-                    content: Text(
-                        'Remove "${expense.vendor}" from your expenses?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Delete',
-                            style: TextStyle(color: Colors.red)),
-                      ),
-                    ],
+            (expense) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Dismissible(
+                key: ValueKey(expense.id ?? expense.createdAt),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                );
-              },
-              onDismissed: (_) => onDelete(expense),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                  child: Icon(Icons.delete_outline, color: Colors.red.shade600),
+                ),
+                confirmDismiss: (_) async {
+                  return await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Delete transaction?'),
+                      content: Text(
+                          'Remove "${expense.vendor}" from your expenses?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Delete',
+                              style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                onDismissed: (_) => onDelete(expense),
                 child: TransactionRow(
                   expense: expense,
                   onTap: () => onTap(expense),
+                  lineItemCategories: expense.id != null
+                      ? categoriesByExpenseId[expense.id]
+                      : null,
                 ),
               ),
             ),
