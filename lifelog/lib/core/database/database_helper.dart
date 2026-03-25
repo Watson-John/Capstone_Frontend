@@ -26,7 +26,7 @@ class DatabaseHelper {
     final path = join(dbPath, 'lifelog.db');
     return openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -59,6 +59,7 @@ class DatabaseHelper {
       CREATE TABLE todos(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         task TEXT NOT NULL,
+        details TEXT,
         startDate TEXT NOT NULL,
         dueDate TEXT NOT NULL,
         status TEXT NOT NULL,
@@ -197,6 +198,12 @@ class DatabaseHelper {
     if (oldVersion < 8) {
       // Force-update seed aliases with corrected proper-case display names.
       await _reseedUserAliases(db);
+    }
+
+    if (oldVersion < 9) {
+      await db.execute('''
+        ALTER TABLE todos ADD COLUMN details TEXT
+      ''');
     }
   }
 

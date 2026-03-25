@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/todo_model.dart';
 import '../add_todo_page.dart';
+
+Color _statusCardColor(String status) {
+  switch (status) {
+    case 'Completed':
+      return AppTheme.cardCompletedBg;
+    case 'In Progress':
+      return AppTheme.cardInProgressBg;
+    default:
+      return AppTheme.cardToDoBg;
+  }
+}
 
 void showTasksBottomSheet(
   BuildContext context, {
@@ -10,12 +22,12 @@ void showTasksBottomSheet(
   required List<Todo> tasks,
   required VoidCallback onReload,
 }) {
-  final cs = Theme.of(context).colorScheme;
   showModalBottomSheet(
     context: context,
     builder: (BuildContext sheetContext) {
       return StatefulBuilder(
         builder: (BuildContext context, StateSetter setModalState) {
+          final cs = Theme.of(context).colorScheme;
           return Container(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -47,6 +59,7 @@ void showTasksBottomSheet(
                             final todo = tasks[index];
                             return Card(
                               margin: const EdgeInsets.symmetric(vertical: 6),
+                              color: cs.surfaceContainer,
                               child: Padding(
                                 padding: const EdgeInsets.all(16.0),
                                 child: Column(
@@ -115,6 +128,18 @@ void showTasksBottomSheet(
                                         ),
                                       ],
                                     ),
+                                    if (todo.details != null &&
+                                        todo.details!.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        todo.details!,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: cs.onSurfaceVariant,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 6),
                                     Row(
                                       children: [
@@ -146,11 +171,9 @@ void showTasksBottomSheet(
                                               const EdgeInsets.symmetric(
                                                   horizontal: 12),
                                           decoration: BoxDecoration(
-                                            color: cs.surface,
+                                            color: _statusCardColor(todo.status),
                                             borderRadius:
                                                 BorderRadius.circular(8),
-                                            border: Border.all(
-                                                color: cs.outline),
                                           ),
                                           child:
                                               DropdownButtonHideUnderline(
@@ -171,7 +194,15 @@ void showTasksBottomSheet(
                                                   .map((v) =>
                                                       DropdownMenuItem(
                                                           value: v,
-                                                          child: Text(v)))
+                                                          child: Container(
+                                                            padding: const EdgeInsets.symmetric(
+                                                                horizontal: 10, vertical: 4),
+                                                            decoration: BoxDecoration(
+                                                              color: _statusCardColor(v),
+                                                              borderRadius: BorderRadius.circular(6),
+                                                            ),
+                                                            child: Text(v),
+                                                          )))
                                                   .toList(),
                                               onChanged:
                                                   (String? newValue) async {

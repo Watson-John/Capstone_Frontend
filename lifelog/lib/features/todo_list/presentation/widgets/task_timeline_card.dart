@@ -35,7 +35,7 @@ class TaskTimelineCard extends StatelessWidget {
       case 'In Progress':
         return const Color(0xFF8A4F00);
       default:
-        return const Color(0xFFB07D00);
+        return AppTheme.accentRed;
     }
   }
 

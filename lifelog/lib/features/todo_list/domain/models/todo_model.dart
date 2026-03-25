@@ -1,6 +1,7 @@
 class Todo {
   final int? id;
   final String task;
+  final String? details;
   final DateTime startDate;
   final DateTime dueDate;
   final String status;
@@ -9,6 +10,7 @@ class Todo {
   Todo({
     this.id,
     required this.task,
+    this.details,
     required this.startDate,
     required this.dueDate,
     required this.status,
@@ -19,6 +21,7 @@ class Todo {
     return {
       'id': id,
       'task': task,
+      'details': details,
       'startDate': startDate.toIso8601String(),
       'dueDate': dueDate.toIso8601String(),
       'status': status,
@@ -30,6 +33,7 @@ class Todo {
     return Todo(
       id: map['id'],
       task: map['task'],
+      details: map['details'],
       startDate: DateTime.parse(map['startDate']),
       dueDate: DateTime.parse(map['dueDate']),
       status: map['status'],
@@ -40,6 +44,7 @@ class Todo {
   Todo copyWith({
     int? id,
     String? task,
+    String? details,
     DateTime? startDate,
     DateTime? dueDate,
     String? status,
@@ -48,6 +53,7 @@ class Todo {
     return Todo(
       id: id ?? this.id,
       task: task ?? this.task,
+      details: details ?? this.details,
       startDate: startDate ?? this.startDate,
       dueDate: dueDate ?? this.dueDate,
       status: status ?? this.status,

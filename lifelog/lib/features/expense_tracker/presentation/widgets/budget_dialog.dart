@@ -13,7 +13,7 @@ Future<bool?> showBudgetDialog(BuildContext context, {Budget? existing}) {
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
-        title: Text(existing == null ? 'Set Spending Budget' : 'Edit Budget'),
+        title: Text(existing == null ? 'Set Spending Limit' : 'Edit Spending Limit'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

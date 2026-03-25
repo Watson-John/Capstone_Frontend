@@ -139,7 +139,7 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
 
   static const AppSemanticColors light = AppSemanticColors(
     cardTotalBg: Color(0xFFD9EBFA),
-    cardToDoBg: Color(0xFFFFDDAA),
+    cardToDoBg: Color(0xFFFFCCCC),
     cardInProgressBg: Color(0xFFFFF0BE),
     cardCompletedBg: Color(0xFFCCEDD8),
     cardSpentBg: Color(0xFFFFD5CE),

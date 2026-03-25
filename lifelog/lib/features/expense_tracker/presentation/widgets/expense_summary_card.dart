@@ -34,7 +34,7 @@ class ExpenseSummaryCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 SummaryItem(
-                  label: 'Budget',
+                  label: 'Spending Limit',
                   amount: budgetAmount,
                   dotColor: AppTheme.accentGreen,
                   onEditTap: onEditBudget,
