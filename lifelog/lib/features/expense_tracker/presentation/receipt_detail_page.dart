@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../data/expense_service.dart';
+import '../domain/models/category_constants.dart';
 import '../domain/models/expense.dart';
 import '../domain/models/receipt_line_item.dart';
+import 'widgets/bulk_categorize_sheet.dart';
 import 'widgets/receipt_category_legend.dart';
 import 'widgets/receipt_items_list.dart';
 import 'widgets/receipt_spend_bar.dart';
@@ -89,6 +91,38 @@ class _ReceiptDetailPageState extends State<ReceiptDetailPage> {
     );
   }
 
+  void _showBulkCategorizeSheet() {
+    final sheetContext = context;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => BulkCategorizeSheet(
+        itemCount: _items!.length,
+        initialCategory: _sortedCategories.isNotEmpty
+            ? _sortedCategories.first.key
+            : ExpenseCategories.assignable.first,
+        onSave: (cat) async {
+          final updated = await _service.recategorizeAllLineItems(
+            expenseId: widget.expense.id!,
+            newCategory: cat,
+          );
+          if (!mounted) return;
+          setState(() {
+            _items = updated;
+            _selectedChipCategories
+              ..clear()
+              ..addAll(updated.map((i) => i.category));
+          });
+          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+        },
+      ),
+    );
+  }
+
   // ── Build ────────────────────────────────────────────────────────────────────
 
   @override
@@ -106,6 +140,14 @@ class _ReceiptDetailPageState extends State<ReceiptDetailPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          if (_items != null && _items!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.bolt),
+              tooltip: 'Categorize all items',
+              onPressed: _showBulkCategorizeSheet,
+            ),
+        ],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -138,6 +180,7 @@ class _ReceiptDetailPageState extends State<ReceiptDetailPage> {
                       sortedCategories: _sortedCategories,
                       selectedCategories: _selectedChipCategories,
                       onRecategorize: _showRecategorizeSheet,
+                      onBulkCategorize: _showBulkCategorizeSheet,
                     ),
                   ),
                   const SliverToBoxAdapter(child: SizedBox(height: 32)),

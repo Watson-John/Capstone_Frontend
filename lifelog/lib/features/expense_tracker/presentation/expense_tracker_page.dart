@@ -46,6 +46,7 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
   FilterPeriod _selectedFilter = FilterPeriod.all;
   bool _showAll = false;
   List<ReceiptLineItem> _allLineItems = [];
+  Map<int, Set<String>> _categoriesByExpenseId = {};
 
   static const Duration _scanProgressTick = Duration(milliseconds: 80);
 
@@ -127,10 +128,17 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
     final expenseIds = expenses.map((e) => e.id).whereType<int>().toList();
     final lineItems = await db.getLineItemsForExpenses(expenseIds);
     if (!mounted) return;
+    final catMap = <int, Set<String>>{};
+    for (final item in lineItems) {
+      if (item.expenseId != null) {
+        catMap.putIfAbsent(item.expenseId!, () => {}).add(item.category);
+      }
+    }
     setState(() {
       _expenses = expenses;
       _budget = budget;
       _allLineItems = lineItems;
+      _categoriesByExpenseId = catMap;
       _isLoading = false;
     });
   }
@@ -384,6 +392,7 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
                                   ReceiptDetailPage(expense: expense),
                             ),
                           ),
+                          categoriesByExpenseId: _categoriesByExpenseId,
                         ),
                         const SizedBox(height: 96),
                       ],

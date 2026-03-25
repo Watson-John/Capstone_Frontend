@@ -1,35 +1,63 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_theme.dart';
+import '../../domain/models/category_styles.dart';
 import '../../domain/models/expense.dart';
 
 class TransactionRow extends StatelessWidget {
-  const TransactionRow({super.key, required this.expense, required this.onTap});
+  const TransactionRow({
+    super.key,
+    required this.expense,
+    required this.onTap,
+    this.lineItemCategories,
+  });
 
   final Expense expense;
   final VoidCallback onTap;
+  final Set<String>? lineItemCategories;
+
+  String get _effectiveCategory {
+    final cats = lineItemCategories;
+    if (cats == null || cats.isEmpty) return expense.category;
+    if (cats.length == 1) return cats.first;
+    return 'MIXED';
+  }
 
   static IconData _icon(String category) {
-    switch (category.toLowerCase()) {
-      case 'food':
-      case 'meals & entertainment':
-        return Icons.restaurant_outlined;
-      case 'salary':
-      case 'income':
-        return Icons.attach_money;
-      case 'entertainment':
-        return Icons.movie_outlined;
-      case 'shopping':
-      case 'retail':
-        return Icons.shopping_bag_outlined;
-      case 'transport':
-      case 'transportation':
-        return Icons.directions_car_outlined;
-      case 'utilities':
-        return Icons.bolt_outlined;
-      case 'health':
-      case 'medical':
-        return Icons.favorite_border;
+    switch (category) {
+      case 'DINING':
+        return Icons.dinner_dining;
+      case 'GROCERY':
+        return Icons.local_grocery_store;
+      case 'KIDS':
+        return Icons.toys;
+      case 'FUEL_AUTO':
+        return Icons.local_gas_station;
+      case 'HOUSEHOLD':
+        return Icons.home_outlined;
+      case 'BEAUTY_CARE':
+        return Icons.spa_outlined;
+      case 'PHARMACY':
+        return Icons.local_pharmacy_outlined;
+      case 'CLOTHING':
+        return Icons.checkroom_outlined;
+      case 'BOOKS_OFFICE':
+        return Icons.menu_book_outlined;
+      case 'ELECTRONICS':
+        return Icons.devices_outlined;
+      case 'HOME_DECOR':
+        return Icons.chair_outlined;
+      case 'PET_SUPPLIES':
+        return Icons.pets;
+      case 'TRAVEL':
+        return Icons.flight_outlined;
+      case 'FEES_TAX':
+        return Icons.account_balance_outlined;
+      case 'OTHER':
+        return Icons.category_outlined;
+      case 'UNCATEGORIZED':
+        return Icons.help_outline;
+      case 'MIXED':
+        return Icons.shuffle;
       default:
         return Icons.receipt_outlined;
     }
@@ -38,8 +66,9 @@ class TransactionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final cat = expense.category;
+    final effectiveCat = _effectiveCategory;
     final isScanned = expense.veryfiDocumentId != null;
+    final catStyle = styleForCategory(effectiveCat);
 
     return Material(
       color: Colors.transparent,
@@ -62,11 +91,10 @@ class TransactionRow extends StatelessWidget {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: AppTheme.cardTotalBg,
+                      color: catStyle.background,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: cs.outlineVariant),
                     ),
-                    child: Icon(_icon(cat), color: const Color(0xFF1C1C1C), size: 22),
+                    child: Icon(_icon(effectiveCat), color: const Color(0xFF1C1C1C), size: 22),
                   ),
                   const SizedBox(width: 12),
                   // Vendor + date

@@ -406,4 +406,13 @@ class ExpenseService {
 
     return [];
   }
+
+  Future<List<ReceiptLineItem>> recategorizeAllLineItems({
+    required int expenseId,
+    required String newCategory,
+  }) async {
+    final db = DatabaseHelper();
+    await db.updateAllLineItemCategories(expenseId, newCategory);
+    return db.getLineItemsForExpense(expenseId);
+  }
 }
