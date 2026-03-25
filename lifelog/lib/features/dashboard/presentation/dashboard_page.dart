@@ -103,7 +103,7 @@ class _DashboardPageState extends State<DashboardPage> {
               _buildQuickStats(context),
               const SizedBox(height: 20),
               _buildQuoteCard(context),
-              const SizedBox(height: 24),
+              const SizedBox(height: 100),
             ],
           ),
         ),

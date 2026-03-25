@@ -17,6 +17,7 @@ class GratitudeJournalPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const AppPageHeader(title: 'Gratitude Journal'),
+              const SizedBox(height: 100),
             ],
           ),
         ),

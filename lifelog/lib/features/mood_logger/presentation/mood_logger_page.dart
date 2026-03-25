@@ -95,7 +95,10 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
                 ),
               ),
       ),
-      floatingActionButton: AppFab(heroTag: 'mood-fab', onPressed: _navigateToAddMood),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 84),
+        child: AppFab(heroTag: 'mood-fab', onPressed: _navigateToAddMood),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }

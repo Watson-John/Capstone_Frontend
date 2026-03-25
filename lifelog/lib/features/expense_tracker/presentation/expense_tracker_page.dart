@@ -341,10 +341,13 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
     final catTotal = cats.fold(0.0, (s, e) => s + e.value);
 
     return Scaffold(
-      floatingActionButton: ExpenseFabMenu(
-        isScanning: _isScanning,
-        onAddManual: _onAddManualTap,
-        onScanReceipt: _onScanTap,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 84),
+        child: ExpenseFabMenu(
+          isScanning: _isScanning,
+          onAddManual: _onAddManualTap,
+          onScanReceipt: _onScanTap,
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Stack(

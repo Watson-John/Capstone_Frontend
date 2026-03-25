@@ -149,7 +149,10 @@ class _TodoListPageState extends State<TodoListPage> {
           ),
         ),
       ),
-      floatingActionButton: AppFab(heroTag: 'todo-fab', onPressed: _navigateToAddTodo),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 84),
+        child: AppFab(heroTag: 'todo-fab', onPressed: _navigateToAddTodo),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }

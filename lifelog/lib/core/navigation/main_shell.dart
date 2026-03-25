@@ -147,28 +147,37 @@ class _MainShellState extends State<MainShell> {
           const SizedBox(width: 8),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-        child: Material(
-          elevation: 3,
-          color: cs.surfaceContainer,
-          borderRadius: BorderRadius.circular(28),
-          clipBehavior: Clip.antiAlias,
-          child: NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            destinations: _destinations,
-            backgroundColor: cs.surfaceContainer,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: _pages,
           ),
-        ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              minimum: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+              child: Material(
+                elevation: 3,
+                color: cs.surfaceContainer,
+                borderRadius: BorderRadius.circular(28),
+                clipBehavior: Clip.antiAlias,
+                child: NavigationBar(
+                  selectedIndex: _currentIndex,
+                  onDestinationSelected: (index) {
+                    setState(() {
+                      _currentIndex = index;
+                    });
+                  },
+                  destinations: _destinations,
+                  backgroundColor: cs.surfaceContainer,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
