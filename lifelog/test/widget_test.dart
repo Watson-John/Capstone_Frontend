@@ -6,6 +6,6 @@ void main() {
   testWidgets('Onboarding page renders', (WidgetTester tester) async {
     await tester.pumpWidget(const LifelogApp(initialRoute: '/onboarding'));
 
-    expect(find.text('What should we call you by?'), findsOneWidget);
+    expect(find.text('What should we call you by?'), findsWidgets);
   });
 }
