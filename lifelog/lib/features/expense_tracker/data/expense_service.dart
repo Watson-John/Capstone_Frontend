@@ -11,6 +11,7 @@ import '../domain/models/category_constants.dart';
 import '../domain/models/expense.dart';
 import '../domain/models/receipt_line_item.dart';
 import '../domain/models/scan_result.dart';
+import '../domain/models/store_alias.dart';
 import '../domain/models/user_alias.dart';
 
 class ExpenseScanException implements Exception {
@@ -173,6 +174,7 @@ class ExpenseService {
   Future<List<ReceiptLineItem>> getReceiptLineItems(
     String? veryfiDocumentId, {
     int? expenseId,
+    String? vendorName,
   }) async {
     final db = DatabaseHelper();
 
@@ -198,7 +200,7 @@ class ExpenseService {
     // 3. Run each item through the categorization pipeline.
     final categorized = <ReceiptLineItem>[];
     for (final item in rawItems) {
-      final resolved = await _categorize(item);
+      final resolved = await _categorize(item, vendorName: vendorName);
       categorized.add(resolved.copyWith(expenseId: expenseId));
     }
 
@@ -277,7 +279,8 @@ class ExpenseService {
     if (rawLineItems.isNotEmpty) {
       final categorized = <ReceiptLineItem>[];
       for (final item in rawLineItems) {
-        final resolved = await _categorize(item);
+        final resolved =
+            await _categorize(item, vendorName: expense.vendor);
         categorized.add(resolved.copyWith(expenseId: expenseId));
       }
       await db.insertLineItems(categorized);
@@ -288,8 +291,11 @@ class ExpenseService {
 
   // ── Categorization pipeline ─────────────────────────────────────────────────
 
-  /// Pipeline: global alias → user alias → (future: fuzzy) → existing → UNCATEGORIZED.
-  Future<ReceiptLineItem> _categorize(ReceiptLineItem item) async {
+  /// Pipeline: global alias → user alias → store alias → (future: fuzzy) → existing → UNCATEGORIZED.
+  Future<ReceiptLineItem> _categorize(
+    ReceiptLineItem item, {
+    String? vendorName,
+  }) async {
     final normalized = UserAlias.normalizeAcronym(item.receiptAcronym);
 
     // Step 1: Global alias (stub — always null for now).
@@ -308,6 +314,18 @@ class ExpenseService {
         decodedName: userResult.decodedName,
         category: userResult.category,
       );
+    }
+
+    // Step 2.5: Store alias — fallback for items with no line-item alias.
+    if (vendorName != null) {
+      final storeAlias = await DatabaseHelper()
+          .getStoreAlias(StoreAlias.normalize(vendorName));
+      if (storeAlias != null) {
+        return item.copyWith(
+          decodedName: _toProperCase(item.decodedName),
+          category: storeAlias.category,
+        );
+      }
     }
 
     // Step 3: Future — fuzzy matching placeholder.
@@ -410,9 +428,23 @@ class ExpenseService {
   Future<List<ReceiptLineItem>> recategorizeAllLineItems({
     required int expenseId,
     required String newCategory,
+    String? vendorName,
   }) async {
     final db = DatabaseHelper();
     await db.updateAllLineItemCategories(expenseId, newCategory);
+
+    // Save a store-level alias so future receipts from this vendor
+    // default uncategorized items to this category.
+    if (vendorName != null && vendorName.isNotEmpty) {
+      final now = DateTime.now().toIso8601String();
+      await db.upsertStoreAlias(StoreAlias(
+        vendorName: StoreAlias.normalize(vendorName),
+        category: newCategory,
+        createdAt: now,
+        updatedAt: now,
+      ));
+    }
+
     return db.getLineItemsForExpense(expenseId);
   }
 }

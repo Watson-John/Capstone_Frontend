@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -24,10 +25,16 @@ final FlutterLocalNotificationsPlugin _localNotifications =
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
+  /// Check whether the user has enabled notifications in settings.
+  static Future<bool> isEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('notifications_enabled') ?? true;
+  }
+
   Future<void> initialize() async {
     // Set up local notifications (Android heads-up banners)
     const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('@drawable/ic_stat_notification');
     await _localNotifications.initialize(
       settings: const InitializationSettings(android: androidSettings),
     );
@@ -86,24 +93,49 @@ class NotificationService {
         await DatabaseHelper().insertNotification(inAppNotification);
         debugPrint('Saved foreground notification to database');
 
-        // Show heads-up banner on Android (and local alert on iOS)
+        // Show heads-up banner only if notifications are enabled in settings
+        if (!await NotificationService.isEnabled()) return;
         await _localNotifications.show(
           id: message.hashCode,
           title: message.notification?.title,
           body: message.notification?.body,
-          notificationDetails: const NotificationDetails(
+          notificationDetails: NotificationDetails(
             android: AndroidNotificationDetails(
               'lifelog_channel',
               'Lifelog Notifications',
               channelDescription: 'Task reminders and alerts',
               importance: Importance.max,
               priority: Priority.high,
-              icon: '@mipmap/ic_launcher',
+              icon: '@drawable/ic_stat_notification',
+              largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+              color: const Color(0xFF6750A4),
             ),
           ),
         );
       }
     });
+  }
+
+  /// Fire a local test notification to preview the icon / style.
+  Future<void> showTestNotification() async {
+    if (!await NotificationService.isEnabled()) return;
+    await _localNotifications.show(
+      id: 0,
+      title: 'Lifelog Test',
+      body: 'This is a test notification to preview the app icon.',
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          'lifelog_channel',
+          'Lifelog Notifications',
+          channelDescription: 'Task reminders and alerts',
+          importance: Importance.max,
+          priority: Priority.high,
+          icon: '@drawable/ic_stat_notification',
+          largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+          color: const Color(0xFF6750A4),
+        ),
+      ),
+    );
   }
 
   Future<void> _generateAndSendToken() async {

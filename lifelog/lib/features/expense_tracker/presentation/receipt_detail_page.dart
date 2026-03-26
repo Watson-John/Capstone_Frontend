@@ -51,6 +51,7 @@ class _ReceiptDetailPageState extends State<ReceiptDetailPage> {
     final items = await _service.getReceiptLineItems(
       widget.expense.veryfiDocumentId,
       expenseId: widget.expense.id,
+      vendorName: widget.expense.vendor,
     );
     if (!mounted) return;
     setState(() {
@@ -109,6 +110,7 @@ class _ReceiptDetailPageState extends State<ReceiptDetailPage> {
           final updated = await _service.recategorizeAllLineItems(
             expenseId: widget.expense.id!,
             newCategory: cat,
+            vendorName: widget.expense.vendor,
           );
           if (!mounted) return;
           setState(() {

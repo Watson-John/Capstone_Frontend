@@ -10,4 +10,5 @@ class AppRoutes {
   static const addTodo = '/add-todo';
   static const notifications = '/notifications';
   static const squiggleDemo = '/squiggle-demo';
+  static const aliasManagement = '/alias-management';
 }

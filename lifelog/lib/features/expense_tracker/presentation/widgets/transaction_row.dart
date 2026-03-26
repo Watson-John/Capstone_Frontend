@@ -18,7 +18,11 @@ class TransactionRow extends StatelessWidget {
   String get _effectiveCategory {
     final cats = lineItemCategories;
     if (cats == null || cats.isEmpty) return expense.category;
-    if (cats.length == 1) return cats.first;
+    // If all line items are UNCATEGORIZED, fall back to the expense's category
+    // (which may have been set by the receipt scanner, e.g. DINING).
+    final meaningful = cats.where((c) => c != 'UNCATEGORIZED').toSet();
+    if (meaningful.isEmpty) return expense.category;
+    if (meaningful.length == 1) return meaningful.first;
     return 'MIXED';
   }
 

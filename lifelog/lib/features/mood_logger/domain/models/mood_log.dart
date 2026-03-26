@@ -1,9 +1,11 @@
 class MoodLog {
   final int? id;
   final String description;
-  final String mood; // the tag entered by user
+  final String mood; // the mood level: awful, bad, okay, good, great
   final String dateTime;
   final String emoji;
+  final String? energy; // "low" or "high", nullable
+  final String? tags; // comma-separated tags, nullable
 
   MoodLog({
     this.id,
@@ -11,6 +13,8 @@ class MoodLog {
     required this.mood,
     required this.dateTime,
     required this.emoji,
+    this.energy,
+    this.tags,
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +24,8 @@ class MoodLog {
       'mood': mood,
       'dateTime': dateTime,
       'emoji': emoji,
+      'energy': energy,
+      'tags': tags,
     };
   }
 
@@ -29,7 +35,9 @@ class MoodLog {
       description: map['description'],
       mood: map['mood'],
       dateTime: map['dateTime'],
-      emoji: map['emoji'] ?? '😎', // Default if migrating
+      emoji: map['emoji'] ?? '😎',
+      energy: map['energy'],
+      tags: map['tags'],
     );
   }
 }

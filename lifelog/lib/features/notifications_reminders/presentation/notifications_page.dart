@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../core/database/database_helper.dart';
+import '../../../core/database/database_helper.dart';
+import '../../../core/services/notification_service.dart';
 import '../domain/models/in_app_notification.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -55,6 +56,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFF1C1C1C)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            tooltip: 'Send test notification',
+            onPressed: () => NotificationService().showTestNotification(),
+          ),
+        ],
       ),
       body: FutureBuilder<List<InAppNotification>>(
         future: _notificationsFuture,

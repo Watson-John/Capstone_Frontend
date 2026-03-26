@@ -24,6 +24,8 @@ class _MainShellState extends State<MainShell> {
   late int _currentIndex;
   int _unreadCount = 0;
   late final StreamSubscription<dynamic> _messageSub;
+  final _dashboardKey = GlobalKey<DashboardPageState>();
+  final _todoKey = GlobalKey<TodoListPageState>();
 
   static const _destinations = <NavigationDestination>[
     NavigationDestination(
@@ -53,12 +55,12 @@ class _MainShellState extends State<MainShell> {
     ),
   ];
 
-  static const _pages = <Widget>[
-    TodoListPage(),
-    ExpenseTrackerPage(),
-    DashboardPage(),
-    MoodLoggerPage(),
-    GratitudeJournalPage(),
+  late final List<Widget> _pages = <Widget>[
+    TodoListPage(key: _todoKey),
+    const ExpenseTrackerPage(),
+    DashboardPage(key: _dashboardKey),
+    const MoodLoggerPage(),
+    const GratitudeJournalPage(),
   ];
 
   @override
@@ -150,8 +152,9 @@ class _MainShellState extends State<MainShell> {
           ),
           IconButton(
             icon: Icon(Icons.menu, size: 28, color: cs.onSurface),
-            onPressed: () {
-              Navigator.of(context).pushNamed(AppRoutes.settings);
+            onPressed: () async {
+              await Navigator.of(context).pushNamed(AppRoutes.settings);
+              _todoKey.currentState?.refresh();
             },
             tooltip: 'Settings / Menu',
           ),
@@ -181,6 +184,12 @@ class _MainShellState extends State<MainShell> {
                     setState(() {
                       _currentIndex = index;
                     });
+                    if (index == 0) {
+                      _todoKey.currentState?.refresh();
+                    }
+                    if (index == 2) {
+                      _dashboardKey.currentState?.refresh();
+                    }
                   },
                   destinations: _destinations,
                   backgroundColor: cs.surfaceContainer,

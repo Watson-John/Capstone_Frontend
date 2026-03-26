@@ -83,12 +83,21 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
         .map((e) => e.id)
         .whereType<int>()
         .toSet();
+    // Build a lookup from expense id → expense category for fallback.
+    final expenseCategoryById = <int, String>{
+      for (final e in _filteredExpenses)
+        if (e.id != null) e.id!: e.category,
+    };
     final map = <String, double>{};
     final expensesWithLineItems = <int>{};
     for (final item in _allLineItems) {
       if (item.expenseId != null && filteredIds.contains(item.expenseId)) {
         expensesWithLineItems.add(item.expenseId!);
-        map[item.category] = (map[item.category] ?? 0.0) + item.price;
+        // Use expense's own category when line item is UNCATEGORIZED.
+        final cat = item.category == 'UNCATEGORIZED'
+            ? (expenseCategoryById[item.expenseId!] ?? item.category)
+            : item.category;
+        map[cat] = (map[cat] ?? 0.0) + item.price;
       }
     }
     for (final expense in _filteredExpenses) {

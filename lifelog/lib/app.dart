@@ -6,6 +6,7 @@ import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/expense_tracker/presentation/add_expense_page.dart';
 import 'features/onboarding/presentation/onboarding_page.dart';
+import 'features/settings/presentation/alias_management_page.dart';
 import 'features/settings/presentation/settings_page.dart';
 import 'features/todo_list/presentation/add_todo_page.dart';
 import 'features/notifications_reminders/presentation/notifications_page.dart';
@@ -53,6 +54,8 @@ class LifelogApp extends StatelessWidget {
             AppRoutes.notifications: (context) => const NotificationsPage(),
             AppRoutes.squiggleDemo: (context) =>
                 const ExpressiveSquiggleDemoPage(),
+            AppRoutes.aliasManagement: (context) =>
+                const AliasManagementPage(),
           },
         );
       },

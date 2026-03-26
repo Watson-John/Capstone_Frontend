@@ -14,10 +14,10 @@ class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
+  State<DashboardPage> createState() => DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class DashboardPageState extends State<DashboardPage> {
   String _userName = '';
   String _dailyQuote = '';
   bool _isLoadingQuote = true;
@@ -30,11 +30,11 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    refresh();
     _fetchDailyQuote();
   }
 
-  Future<void> _loadData() async {
+  Future<void> refresh() async {
     final prefs = await SharedPreferences.getInstance();
     final db = DatabaseHelper();
     final results = await Future.wait([

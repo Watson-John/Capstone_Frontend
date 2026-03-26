@@ -4,6 +4,7 @@ import 'package:path/path.dart';
 import '../../features/expense_tracker/domain/models/expense.dart';
 import '../../features/expense_tracker/domain/models/budget.dart';
 import '../../features/expense_tracker/domain/models/receipt_line_item.dart';
+import '../../features/expense_tracker/domain/models/store_alias.dart';
 import '../../features/expense_tracker/domain/models/user_alias.dart';
 import '../../features/todo_list/domain/models/todo_model.dart';
 import '../../features/notifications_reminders/domain/models/in_app_notification.dart';
@@ -26,7 +27,7 @@ class DatabaseHelper {
     final path = join(dbPath, 'lifelog.db');
     return openDatabase(
       path,
-      version: 9,
+      version: 12,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -63,7 +64,15 @@ class DatabaseHelper {
         startDate TEXT NOT NULL,
         dueDate TEXT NOT NULL,
         status TEXT NOT NULL,
-        imagePath TEXT
+        imagePath TEXT,
+        priority TEXT NOT NULL DEFAULT 'Medium',
+        isAllDay INTEGER NOT NULL DEFAULT 0,
+        isRecurring INTEGER NOT NULL DEFAULT 0,
+        recurrenceType TEXT,
+        recurrenceDays TEXT,
+        reminderMinutes INTEGER,
+        category TEXT,
+        subtasks TEXT
       )
     ''');
     await db.execute('''
@@ -81,7 +90,9 @@ class DatabaseHelper {
         description TEXT NOT NULL,
         mood TEXT NOT NULL,
         dateTime TEXT NOT NULL,
-        emoji TEXT NOT NULL
+        emoji TEXT NOT NULL,
+        energy TEXT,
+        tags TEXT
       )
     ''');
     await db.execute('''
@@ -101,6 +112,15 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         receipt_acronym TEXT NOT NULL UNIQUE,
         decoded_name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE store_aliases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vendor_name TEXT NOT NULL UNIQUE,
         category TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -205,6 +225,51 @@ class DatabaseHelper {
         ALTER TABLE todos ADD COLUMN details TEXT
       ''');
     }
+
+    if (oldVersion < 10) {
+      final newColumns = <String>[
+        "ALTER TABLE todos ADD COLUMN priority TEXT NOT NULL DEFAULT 'Medium'",
+        'ALTER TABLE todos ADD COLUMN isAllDay INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE todos ADD COLUMN isRecurring INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE todos ADD COLUMN recurrenceType TEXT',
+        'ALTER TABLE todos ADD COLUMN recurrenceDays TEXT',
+        'ALTER TABLE todos ADD COLUMN reminderMinutes INTEGER',
+        'ALTER TABLE todos ADD COLUMN category TEXT',
+        'ALTER TABLE todos ADD COLUMN subtasks TEXT',
+      ];
+      for (final sql in newColumns) {
+        try {
+          await db.execute(sql);
+        } catch (_) {
+          // Column may already exist — safe to ignore
+        }
+      }
+    }
+
+    if (oldVersion < 11) {
+      for (final sql in [
+        'ALTER TABLE moodLog ADD COLUMN energy TEXT',
+        'ALTER TABLE moodLog ADD COLUMN tags TEXT',
+      ]) {
+        try {
+          await db.execute(sql);
+        } catch (_) {
+          // Column may already exist — safe to ignore
+        }
+      }
+    }
+
+    if (oldVersion < 12) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS store_aliases (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          vendor_name TEXT NOT NULL UNIQUE,
+          category TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+    }
   }
 
   // --- Seed aliases --------------------------------------------------------
@@ -300,6 +365,19 @@ class DatabaseHelper {
       'todos',
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  /// Promote all "To Do" tasks whose start time has passed (but are not yet
+  /// past due) to "In Progress".
+  Future<int> autoPromoteToInProgress() async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    return db.update(
+      'todos',
+      {'status': 'In Progress'},
+      where: "status = 'To Do' AND startDate <= ? AND dueDate >= ?",
+      whereArgs: [now, now],
     );
   }
 
@@ -545,5 +623,39 @@ class DatabaseHelper {
   Future<int> deleteUserAlias(int id) async {
     final db = await database;
     return db.delete('user_aliases', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- Store Alias Operations ---
+
+  Future<int> upsertStoreAlias(StoreAlias alias) async {
+    final db = await database;
+    return db.insert(
+      'store_aliases',
+      alias.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<StoreAlias?> getStoreAlias(String normalizedVendor) async {
+    final db = await database;
+    final maps = await db.query(
+      'store_aliases',
+      where: 'vendor_name = ?',
+      whereArgs: [normalizedVendor],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return StoreAlias.fromMap(maps.first);
+  }
+
+  Future<List<StoreAlias>> getAllStoreAliases() async {
+    final db = await database;
+    final maps = await db.query('store_aliases', orderBy: 'updated_at DESC');
+    return maps.map(StoreAlias.fromMap).toList();
+  }
+
+  Future<int> deleteStoreAlias(int id) async {
+    final db = await database;
+    return db.delete('store_aliases', where: 'id = ?', whereArgs: [id]);
   }
 }

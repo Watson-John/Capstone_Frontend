@@ -4,6 +4,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/database/database_helper.dart';
 import '../domain/models/mood_log.dart';
+import '../domain/models/mood_tag_styles.dart';
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 class AddMoodPage extends StatefulWidget {
   final MoodLog? moodToEdit;
@@ -15,10 +18,11 @@ class AddMoodPage extends StatefulWidget {
 }
 
 class _AddMoodPageState extends State<AddMoodPage> {
-  final TextEditingController _descController = TextEditingController();
+  final TextEditingController _noteController = TextEditingController();
 
-  final TextEditingController _emojiController =
-      TextEditingController(text: '😎');
+  int? _selectedMoodIndex;
+  String? _energy;
+  final Set<String> _selectedTags = {};
 
   bool _isAnalyzing = false;
   String _aiResponse = '';
@@ -26,22 +30,41 @@ class _AddMoodPageState extends State<AddMoodPage> {
   @override
   void initState() {
     super.initState();
-    if (widget.moodToEdit != null) {
-      _descController.text = widget.moodToEdit!.description;
-      _emojiController.text = widget.moodToEdit!.emoji;
+    final edit = widget.moodToEdit;
+    if (edit != null) {
+      _noteController.text = edit.description;
+      _energy = edit.energy;
+
+      // Restore mood selection
+      final idx = kMoods.indexWhere((m) => m.emoji == edit.emoji);
+      _selectedMoodIndex = idx >= 0 ? idx : null;
+
+      // Restore tags
+      if (edit.tags != null && edit.tags!.isNotEmpty) {
+        _selectedTags.addAll(edit.tags!.split(','));
+      }
+
     }
   }
 
-  Future<void> _analyzeMood() async {
-    final desc = _descController.text.trim();
-    final emoji = _emojiController.text.trim();
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
 
-    if (desc.isEmpty) {
+  // ── AI Analysis (existing logic) ──────────────────────────────────────────
+
+  Future<void> _analyzeMood() async {
+    if (_selectedMoodIndex == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a description first')),
+        const SnackBar(content: Text('Please select a mood first')),
       );
       return;
     }
+
+    final mood = kMoods[_selectedMoodIndex!];
+    final desc = _noteController.text.trim();
 
     setState(() {
       _isAnalyzing = true;
@@ -57,8 +80,8 @@ class _AddMoodPageState extends State<AddMoodPage> {
               url,
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({
-                'mood': emoji,
-                'description': desc,
+                'mood': mood.emoji,
+                'description': desc.isNotEmpty ? desc : mood.label,
               }),
             )
             .timeout(const Duration(seconds: 15));
@@ -100,37 +123,35 @@ class _AddMoodPageState extends State<AddMoodPage> {
     }
   }
 
-  Future<void> _saveMood() async {
-    final desc = _descController.text.trim();
+  // ── Save ──────────────────────────────────────────────────────────────────
 
-    if (desc.isEmpty) {
+  Future<void> _saveMood() async {
+    if (_selectedMoodIndex == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a description')),
+        const SnackBar(content: Text('Please select how you\'re feeling')),
       );
       return;
     }
 
-    final emoji = _emojiController.text.trim().isNotEmpty
-        ? _emojiController.text.trim()
-        : '😎';
+    final mood = kMoods[_selectedMoodIndex!];
+    final note = _noteController.text.trim();
 
     final newLog = MoodLog(
       id: widget.moodToEdit?.id,
-      description: desc,
-      mood: emoji,
+      description: note,
+      mood: mood.label,
       dateTime:
           widget.moodToEdit?.dateTime ?? DateTime.now().toIso8601String(),
-      emoji: emoji,
+      emoji: mood.emoji,
+      energy: _energy,
+      tags: _selectedTags.isNotEmpty ? _selectedTags.join(',') : null,
     );
 
     final db = DatabaseHelper();
 
     if (widget.moodToEdit == null) {
       await db.insertMoodLog(newLog);
-
-      _descController.clear();
-      _emojiController.text = '😎';
-
+      _resetForm();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Mood saved successfully!')),
@@ -138,7 +159,6 @@ class _AddMoodPageState extends State<AddMoodPage> {
       }
     } else {
       await db.updateMoodLog(newLog);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Mood updated successfully!')),
@@ -149,8 +169,19 @@ class _AddMoodPageState extends State<AddMoodPage> {
         return;
       }
     }
-
   }
+
+  void _resetForm() {
+    setState(() {
+      _selectedMoodIndex = null;
+      _energy = null;
+      _selectedTags.clear();
+      _noteController.clear();
+      _aiResponse = '';
+    });
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -204,80 +235,34 @@ class _AddMoodPageState extends State<AddMoodPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Emoji picker
+                // ── Question ────────────────────────────────────────────
                 Text(
-                  'How are you feeling today?',
-                  style: textTheme.titleMedium?.copyWith(
+                  'How are you feeling right now?',
+                  style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: cs.onSurface,
                   ),
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: 80,
-                  child: TextField(
-                    controller: _emojiController,
-                    textAlign: TextAlign.center,
-                    maxLength: 2,
-                    style: const TextStyle(fontSize: 32),
-                    decoration: InputDecoration(
-                      counterText: "",
-                      filled: true,
-                      fillColor: cs.surfaceContainerHighest,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    onChanged: (val) {
-                      setState(() {});
-                    },
-                  ),
-                ),
+                const SizedBox(height: 20),
+
+                // ── Mood Selector Row ───────────────────────────────────
+                _buildMoodSelector(cs, textTheme),
+
                 const SizedBox(height: 24),
 
-                // Description
-                Text(
-                  'Explain about your mood',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _descController,
-                  maxLines: 3,
-                  style: TextStyle(color: cs.onSurface),
-                  decoration: InputDecoration(
-                    hintText: 'Describe how you feel...',
-                    hintStyle: TextStyle(color: cs.onSurfaceVariant),
-                    filled: true,
-                    fillColor: cs.surface,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: cs.outline),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: cs.outline),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: cs.primary, width: 2),
-                    ),
-                  ),
-                ),
+                // ── Details Section ──────────────────────────────────────
+                _buildDetailsSection(cs, textTheme),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
-                // Action buttons row
+                // ── Action Buttons ──────────────────────────────────────
                 Row(
                   children: [
-                    FilledButton(
+                    FilledButton.icon(
                       onPressed: _saveMood,
-                      child: Text(
-                        isEditing ? 'Update Mood' : 'Log Mood',
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: Text(
+                        isEditing ? 'Update' : 'Save',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -302,7 +287,7 @@ class _AddMoodPageState extends State<AddMoodPage> {
                   ],
                 ),
 
-                // AI Response
+                // ── AI Insight ──────────────────────────────────────────
                 if (_aiResponse.isNotEmpty || _isAnalyzing) ...[
                   const SizedBox(height: 16),
                   Container(
@@ -326,7 +311,8 @@ class _AddMoodPageState extends State<AddMoodPage> {
                         if (_isAnalyzing)
                           Center(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: cs.primary,
@@ -349,6 +335,208 @@ class _AddMoodPageState extends State<AddMoodPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // ── Mood Selector ─────────────────────────────────────────────────────────
+
+  Widget _buildMoodSelector(ColorScheme cs, TextTheme textTheme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(kMoods.length, (index) {
+        final mood = kMoods[index];
+        final isSelected = _selectedMoodIndex == index;
+
+        return GestureDetector(
+          onTap: () => setState(() => _selectedMoodIndex = index),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? cs.primaryContainer : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: isSelected ? 1.25 : 1.0,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  child: Text(
+                    mood.emoji,
+                    style: const TextStyle(fontSize: 32),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: (textTheme.labelMedium ?? const TextStyle()).copyWith(
+                    fontWeight:
+                        isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected
+                        ? cs.primary
+                        : cs.onSurfaceVariant,
+                  ),
+                  child: Text(mood.label),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  // ── Details Section ───────────────────────────────────────────────────────
+
+  Widget _buildDetailsSection(ColorScheme cs, TextTheme textTheme) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Energy ──────────────────────────────────────────────────
+          Text(
+            'Energy',
+            style: textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment<String>(
+                  value: 'low',
+                  label: Text('Low'),
+                  icon: Icon(Icons.battery_1_bar_rounded, size: 18),
+                ),
+                ButtonSegment<String>(
+                  value: 'medium',
+                  label: Text('Medium'),
+                  icon: Icon(Icons.battery_4_bar_rounded, size: 18),
+                ),
+                ButtonSegment<String>(
+                  value: 'high',
+                  label: Text('High'),
+                  icon: Icon(Icons.battery_full_rounded, size: 18),
+                ),
+              ],
+              selected: _energy != null ? {_energy!} : {},
+              emptySelectionAllowed: true,
+              onSelectionChanged: (newSelection) {
+                setState(() {
+                  _energy = newSelection.isNotEmpty
+                      ? newSelection.first
+                      : null;
+                });
+              },
+              style: ButtonStyle(
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Tags ──────────────────────────────────────────────────
+          Text(
+            'Tags',
+            style: textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: kTagStyles.entries.map((entry) {
+              final tag = entry.key;
+              final style = entry.value;
+              final isSelected = _selectedTags.contains(tag);
+
+              return FilterChip(
+                label: Text(tag),
+                selected: isSelected,
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedTags.add(tag);
+                    } else {
+                      _selectedTags.remove(tag);
+                    }
+                  });
+                },
+                showCheckmark: true,
+                checkmarkColor: style.foreground,
+                backgroundColor: style.background.withValues(alpha: 0.5),
+                selectedColor: style.background,
+                side: BorderSide(
+                  color: isSelected
+                      ? style.foreground.withValues(alpha: 0.4)
+                      : style.background,
+                  width: isSelected ? 1.5 : 1.0,
+                ),
+                labelStyle: TextStyle(
+                  color: style.foreground,
+                  fontWeight:
+                      isSelected ? FontWeight.w600 : FontWeight.w500,
+                  fontSize: 13,
+                ),
+                shape: const StadiumBorder(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Note ──────────────────────────────────────────────────
+          Text(
+            'Note',
+            style: textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _noteController,
+            maxLines: 3,
+            style: TextStyle(color: cs.onSurface),
+            decoration: InputDecoration(
+              hintText: 'Add a note about how you feel...',
+              hintStyle: TextStyle(color: cs.onSurfaceVariant),
+              filled: true,
+              fillColor: cs.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.outline),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.outline),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.primary, width: 2),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
