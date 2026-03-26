@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import '../../features/dashboard/presentation/dashboard_page.dart';
@@ -20,6 +23,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   late int _currentIndex;
   int _unreadCount = 0;
+  late final StreamSubscription<dynamic> _messageSub;
 
   static const _destinations = <NavigationDestination>[
     NavigationDestination(
@@ -62,6 +66,13 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _refreshUnreadCount();
+    _messageSub = FirebaseMessaging.onMessage.listen((_) => _refreshUnreadCount());
+  }
+
+  @override
+  void dispose() {
+    _messageSub.cancel();
+    super.dispose();
   }
 
   Future<void> _refreshUnreadCount() async {

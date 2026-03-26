@@ -53,8 +53,9 @@ void main() async {
     // Do not await this so it doesn't block runApp if backend is slow/unreachable
     notificationService.initialize();
 
-    // Request camera and photo library permissions alongside notifications
-    await [Permission.camera, Permission.photos].request();
+    // Request camera and photo library permissions after UI is up.
+    // Do not await here — blocking before runApp() stalls the launch.
+    [Permission.camera, Permission.photos].request();
   } catch (e) {
     debugPrint(
         "Firebase init error. Ensure native configs or flutterfire configure are setup: $e");

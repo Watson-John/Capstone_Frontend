@@ -1,4 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
@@ -98,6 +103,62 @@ class _TodoListPageState extends State<TodoListPage> {
     });
   }
 
+  Future<void> _triggerDemoNotification() async {
+    if (_todos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No tasks found. Add a task first.')),
+      );
+      return;
+    }
+
+    final mostRecent = _todos.reduce(
+      (a, b) => (a.id ?? 0) > (b.id ?? 0) ? a : b,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString('device_id');
+    final baseUrl = dotenv.env['BACKEND_URL'];
+
+    if (deviceId == null || baseUrl == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Device not registered. Restart the app.')),
+      );
+      return;
+    }
+
+    // Schedule date_time 10min+30s from now so notify_at = ~30s from now
+    final dateTime = DateTime.now().toUtc().add(const Duration(minutes: 10, seconds: 5));
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/notifications/schedule/todo/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'notification': mostRecent.task,
+          'date_time': dateTime.toIso8601String(),
+          'device_id': deviceId,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Demo notification for "${mostRecent.task}" fires in ~5s')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to schedule: ${response.body}')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
   Future<void> _navigateToAddTodo() async {
     final result = await Navigator.of(context).pushNamed(AppRoutes.addTodo);
     if (result == true) {
@@ -131,7 +192,16 @@ class _TodoListPageState extends State<TodoListPage> {
               children: [
                 const SizedBox(height: 16),
                 const AppPageHeader(title: 'To-Do List'),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _triggerDemoNotification,
+                    icon: const Icon(Icons.notifications_active, size: 18),
+                    label: const Text('Demo: Notify Latest Task'),
+                  ),
+                ),
+                const SizedBox(height: 4),
                 _buildScheduleCard(context, cs),
                 const SizedBox(height: 16),
                 TodoStatsCard(

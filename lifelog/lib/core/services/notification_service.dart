@@ -4,16 +4,37 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/database_helper.dart';
 import '../../features/notifications_reminders/domain/models/in_app_notification.dart';
 
+const AndroidNotificationChannel _channel = AndroidNotificationChannel(
+  'lifelog_channel',
+  'Lifelog Notifications',
+  description: 'Task reminders and alerts',
+  importance: Importance.max,
+);
+
+final FlutterLocalNotificationsPlugin _localNotifications =
+    FlutterLocalNotificationsPlugin();
+
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
   Future<void> initialize() async {
+    // Set up local notifications (Android heads-up banners)
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    await _localNotifications.initialize(
+      settings: const InitializationSettings(android: androidSettings),
+    );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(_channel);
     // Request permission for iOS and Android 13+
     NotificationSettings settings = await _firebaseMessaging.requestPermission(
       alert: true,
@@ -64,6 +85,23 @@ class NotificationService {
 
         await DatabaseHelper().insertNotification(inAppNotification);
         debugPrint('Saved foreground notification to database');
+
+        // Show heads-up banner on Android (and local alert on iOS)
+        await _localNotifications.show(
+          id: message.hashCode,
+          title: message.notification?.title,
+          body: message.notification?.body,
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'lifelog_channel',
+              'Lifelog Notifications',
+              channelDescription: 'Task reminders and alerts',
+              importance: Importance.max,
+              priority: Priority.high,
+              icon: '@mipmap/ic_launcher',
+            ),
+          ),
+        );
       }
     });
   }
@@ -95,7 +133,7 @@ class NotificationService {
     final String platform = kIsWeb ? 'web' : Platform.operatingSystem;
     debugPrint('Detected platform: $platform');
 
-    final url = Uri.parse('$baseUrl/api/notifications/token/');
+    final url = Uri.parse('$baseUrl/api/commons/token/');
     debugPrint('Target API URL resolved to: $url');
 
     try {

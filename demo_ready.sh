@@ -1,33 +1,65 @@
 #!/usr/bin/env bash
 # demo_ready.sh
-# Resets the Lifelog app to a clean "fresh install" state on the connected
-# Android device/emulator. Equivalent to "Clear Data" in Android Settings.
+# Resets the Lifelog Flutter app to a clean "fresh install" state on the
+# connected Android device/emulator. Equivalent to "Clear Data" in Settings.
 # Run this before any demo.
+#
+# What `pm clear` removes on the device:
+#   - SQLite database (lifelog.db): expenses, budgets, todos, notifications,
+#     moodLog, receipt_line_items, user_aliases
+#   - SharedPreferences: userName, device_id
+#   - FCM token (app must re-register on next launch)
+#   - Cached images from image_picker
+#   - All files in the app's internal/external storage
 #
 # Usage:
 #   chmod +x demo_ready.sh   (first time only)
 #   ./demo_ready.sh
 #
 # Optional flags:
-#   --no-launch    Wipe data but don't relaunch the app
-#   --device <id>  Target a specific device (from `adb devices`)
+#   --no-launch          Wipe data but don't relaunch the app
+#   --device <id>        Target a specific device (from `adb devices`)
+#   --full               Also run `flutter clean` in lifelog/ (clears build artifacts)
+#   --backend-url <url>  Override backend URL (default: reads from lifelog/.env)
 
 set -euo pipefail
 
 PACKAGE="com.example.lifelog"
 LAUNCH=true
 DEVICE_ARG=""
+FULL_CLEAN=false
+BACKEND_URL=""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLUTTER_DIR="$SCRIPT_DIR/lifelog"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --no-launch) LAUNCH=false; shift ;;
-    --device)    DEVICE_ARG="-s $2"; shift 2 ;;
+    --no-launch)    LAUNCH=false; shift ;;
+    --device)       DEVICE_ARG="-s $2"; shift 2 ;;
+    --full)         FULL_CLEAN=true; shift ;;
+    --backend-url)  BACKEND_URL="$2"; shift 2 ;;
     *) echo "Unknown flag: $1"; exit 1 ;;
   esac
 done
 
 ADB="adb $DEVICE_ARG"
+
+# Resolve BACKEND_URL from .env if not provided via flag
+if [[ -z "$BACKEND_URL" ]]; then
+  ENV_FILE="$FLUTTER_DIR/.env"
+  if [[ -f "$ENV_FILE" ]]; then
+    BACKEND_URL=$(grep -E '^BACKEND_URL=' "$ENV_FILE" | cut -d'=' -f2- || true)
+  fi
+fi
+BACKEND_URL="${BACKEND_URL:-http://10.0.2.2:8001}"
+
+# Compute total steps
+STEPS=2
+if [[ "$FULL_CLEAN" == true ]]; then ((STEPS++)); fi
+STEP=0
+next_step() { ((STEP++)); printf "[ %d/%d ]" "$STEP" "$STEPS"; }
 
 # ── Preflight check ──────────────────────────────────────────────────────────
 echo ""
@@ -52,22 +84,46 @@ fi
 echo "Device found. Starting reset..."
 echo ""
 
+# ── Flutter clean (optional) ─────────────────────────────────────────────────
+if [[ "$FULL_CLEAN" == true ]]; then
+  echo "$(next_step) Running flutter clean in lifelog/..."
+  if command -v flutter &>/dev/null; then
+    (cd "$FLUTTER_DIR" && flutter clean)
+    echo "        Build artifacts removed."
+  else
+    echo "        WARNING: flutter not found in PATH. Skipping flutter clean."
+  fi
+fi
+
 # ── Clear all app data ───────────────────────────────────────────────────────
 # `pm clear` is equivalent to Settings → Apps → Lifelog → Clear Data.
 # It wipes everything: SQLite databases, SharedPreferences, cache, files.
 # Works on non-rooted devices. Also force-stops the app automatically.
-echo "[ 1/2 ] Clearing all app data for $PACKAGE..."
+echo "$(next_step) Clearing all app data for $PACKAGE..."
 $ADB shell pm clear "$PACKAGE"
+echo "        Cleared: SQLite DB (7 tables), SharedPreferences,"
+echo "                 FCM token, cached images, app files."
 
 # ── Launch ───────────────────────────────────────────────────────────────────
 if [[ "$LAUNCH" == true ]]; then
-  echo "[ 2/2 ] Launching app..."
+  echo "$(next_step) Launching app..."
   $ADB shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 &>/dev/null
   echo "        App launched."
 else
-  echo "[ 2/2 ] Skipping launch (--no-launch)."
+  echo "$(next_step) Skipping launch (--no-launch)."
 fi
+
+# ── (Optional) Backend demo reset ────────────────────────────────────────────
+# Uncomment when the backend exposes a reset endpoint:
+# echo "$(next_step) Resetting backend demo data..."
+# curl -sf -X POST "$BACKEND_URL/api/demo/reset/" \
+#   && echo "        Backend cleared." \
+#   || echo "        WARNING: Backend reset failed (endpoint may not exist)."
 
 echo ""
 echo "Done. Lifelog is reset — onboarding, empty DB, no budget."
+echo ""
+echo "Note: Device-side data is cleared. If the backend at"
+echo "  $BACKEND_URL has data tied to this device (e.g. FCM tokens),"
+echo "  clear it manually or add a /api/demo/reset/ endpoint."
 echo ""
