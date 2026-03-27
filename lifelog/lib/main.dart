@@ -12,6 +12,7 @@ import 'core/services/notification_service.dart';
 import 'firebase_options.dart'; // Uncomment after running flutterfire configure
 
 import 'core/database/database_helper.dart';
+import 'core/services/app_instance_service.dart';
 import 'features/notifications_reminders/domain/models/in_app_notification.dart';
 
 // Handling background messages
@@ -38,6 +39,9 @@ void main() async {
 
   // Load environment variables
   await dotenv.load(fileName: ".env");
+
+  // Register anonymous app-instance identity (no-op if already registered).
+  await AppInstanceService.registerIfNeeded();
 
   // Initialize Firebase
   // Note: For cross-platform support, you should run `flutterfire configure`

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../../../core/database/database_helper.dart';
+import '../../../core/services/app_instance_service.dart';
 import '../domain/models/category_constants.dart';
 import '../domain/models/expense.dart';
 import '../domain/models/receipt_line_item.dart';
@@ -169,7 +170,7 @@ class ExpenseService {
   }
 
   /// Load line items for an expense. If already persisted in local DB, return
-  /// those (preserving user corrections). Otherwise, fetch from API/stub,
+  /// those (preserving user corrections). Otherwise, fetch from backend,
   /// run through the categorization pipeline, persist, and return.
   Future<List<ReceiptLineItem>> getReceiptLineItems(
     String? veryfiDocumentId, {
@@ -194,13 +195,19 @@ class ExpenseService {
       }
     }
 
-    // 2. Fetch raw items from API (currently stub).
+    // 2. Fetch raw items from backend.
     final rawItems = await _fetchRawLineItems(veryfiDocumentId);
 
-    // 3. Run each item through the categorization pipeline.
+    // 3. Batch-resolve global aliases in one API call, then categorize each item.
+    final globalHints = await _batchLookupGlobalAliases(rawItems, vendorName: vendorName);
     final categorized = <ReceiptLineItem>[];
     for (final item in rawItems) {
-      final resolved = await _categorize(item, vendorName: vendorName);
+      final normalized = UserAlias.normalizeAcronym(item.receiptAcronym);
+      final resolved = await _categorize(
+        item,
+        vendorName: vendorName,
+        globalResult: globalHints[normalized],
+      );
       categorized.add(resolved.copyWith(expenseId: expenseId));
     }
 
@@ -277,10 +284,15 @@ class ExpenseService {
 
     // 2. Run line items through categorization pipeline and persist.
     if (rawLineItems.isNotEmpty) {
+      final globalHints = await _batchLookupGlobalAliases(rawLineItems, vendorName: expense.vendor);
       final categorized = <ReceiptLineItem>[];
       for (final item in rawLineItems) {
-        final resolved =
-            await _categorize(item, vendorName: expense.vendor);
+        final normalized = UserAlias.normalizeAcronym(item.receiptAcronym);
+        final resolved = await _categorize(
+          item,
+          vendorName: expense.vendor,
+          globalResult: globalHints[normalized],
+        );
         categorized.add(resolved.copyWith(expenseId: expenseId));
       }
       await db.insertLineItems(categorized);
@@ -291,15 +303,18 @@ class ExpenseService {
 
   // ── Categorization pipeline ─────────────────────────────────────────────────
 
-  /// Pipeline: global alias → user alias → store alias → (future: fuzzy) → existing → UNCATEGORIZED.
+  /// Pipeline: global alias → user alias → store alias → existing → UNCATEGORIZED.
+  ///
+  /// [globalResult] is the pre-fetched result from [_batchLookupGlobalAliases],
+  /// keyed by normalized acronym. Passing it in avoids a per-item HTTP call.
   Future<ReceiptLineItem> _categorize(
     ReceiptLineItem item, {
     String? vendorName,
+    ({String decodedName, String category})? globalResult,
   }) async {
     final normalized = UserAlias.normalizeAcronym(item.receiptAcronym);
 
-    // Step 1: Global alias (stub — always null for now).
-    final globalResult = await _resolveGlobalAlias(normalized);
+    // Step 1: Global alias (backend fuzzy match, pre-fetched in batch).
     if (globalResult != null) {
       return item.copyWith(
         decodedName: globalResult.decodedName,
@@ -316,7 +331,7 @@ class ExpenseService {
       );
     }
 
-    // Step 2.5: Store alias — fallback for items with no line-item alias.
+    // Step 3: Store alias — fallback for items with no line-item alias.
     if (vendorName != null) {
       final storeAlias = await DatabaseHelper()
           .getStoreAlias(StoreAlias.normalize(vendorName));
@@ -327,10 +342,6 @@ class ExpenseService {
         );
       }
     }
-
-    // Step 3: Future — fuzzy matching placeholder.
-    // final fuzzyResult = await _resolveFuzzyAlias(normalized);
-    // if (fuzzyResult != null) return item.copyWith(...);
 
     final casedName = _toProperCase(item.decodedName);
 
@@ -367,11 +378,63 @@ class ExpenseService {
     }).join(' ');
   }
 
-  /// Global/preloaded alias stub — returns null for now.
-  /// Future: load from bundled CSV asset and search.
-  Future<({String decodedName, String category})?> _resolveGlobalAlias(
-      String normalized) async {
-    return null;
+  /// Calls POST /api/aliases/lookup/ once for the whole receipt and returns a
+  /// map of normalized acronym → (decodedName, category) for every item that
+  /// got a confident match (matchType != null). Items with no match are absent
+  /// from the map so the pipeline falls through to user/store alias tiers.
+  Future<Map<String, ({String decodedName, String category})>>
+      _batchLookupGlobalAliases(
+    List<ReceiptLineItem> items, {
+    String? vendorName,
+  }) async {
+    if (items.isEmpty) return {};
+
+    final url = Uri.parse('$_baseUrl/api/aliases/lookup/');
+    final body = jsonEncode({
+      'lineItems': items
+          .map((i) => {'receiptAcronym': i.receiptAcronym, 'price': i.price})
+          .toList(),
+      if (vendorName != null && vendorName.isNotEmpty) 'vendorName': vendorName,
+    });
+
+    try {
+      final response = await http
+          .post(url,
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Prototype-App-Key': _appKey,
+              },
+              body: body)
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) {
+        debugPrint('[ExpenseService] alias lookup status=${response.statusCode}');
+        return {};
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? [];
+      final map = <String, ({String decodedName, String category})>{};
+
+      for (final r in results) {
+        final result = r as Map<String, dynamic>;
+        final matchType = result['matchType'] as String?;
+        final decodedName = result['decodedName'] as String?;
+        final category = result['category'] as String?;
+        final acronym = result['receiptAcronym'] as String?;
+
+        if (matchType == null || decodedName == null || category == null || acronym == null) {
+          continue;
+        }
+        final normalized = UserAlias.normalizeAcronym(acronym);
+        map[normalized] = (decodedName: decodedName, category: category);
+      }
+
+      return map;
+    } catch (e) {
+      debugPrint('[ExpenseService] alias lookup error: $e');
+      return {};
+    }
   }
 
   /// User alias lookup — queries the user_aliases table.
@@ -437,14 +500,71 @@ class ExpenseService {
     // default uncategorized items to this category.
     if (vendorName != null && vendorName.isNotEmpty) {
       final now = DateTime.now().toIso8601String();
-      await db.upsertStoreAlias(StoreAlias(
+      final storeAlias = StoreAlias(
         vendorName: StoreAlias.normalize(vendorName),
         category: newCategory,
         createdAt: now,
         updatedAt: now,
-      ));
+      );
+      await db.upsertStoreAlias(storeAlias);
+      _syncStoreAliasToBackend(vendorName, newCategory); // fire-and-forget
     }
 
-    return db.getLineItemsForExpense(expenseId);
+    final items = await db.getLineItemsForExpense(expenseId);
+    _categorizeAllOnBackend(items: items, vendorName: vendorName); // fire-and-forget
+    return items;
+  }
+
+  // ── Backend alias sync (fire-and-forget) ────────────────────────────────────
+
+  /// POST /api/aliases/categorize-all/ — syncs confirmed aliases + donations.
+  Future<void> _categorizeAllOnBackend({
+    required List<ReceiptLineItem> items,
+    String? vendorName,
+  }) async {
+    if (items.isEmpty) return;
+    final headers = await AppInstanceService.instanceHeaders();
+    if (headers.isEmpty) return; // not registered yet — skip silently
+
+    try {
+      final url = Uri.parse('$_baseUrl/api/aliases/categorize-all/');
+      await http.post(
+        url,
+        headers: {...headers, 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'lineItems': items
+              .map((i) => {
+                    'receiptAcronym': i.receiptAcronym,
+                    'decodedName': i.decodedName,
+                    'category': i.category,
+                  })
+              .toList(),
+          if (vendorName != null && vendorName.isNotEmpty) 'vendorName': vendorName,
+        }),
+      ).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('[ExpenseService] categorize-all sync error: $e');
+    }
+  }
+
+  /// POST /api/aliases/stores/ — syncs a store alias upsert.
+  Future<void> _syncStoreAliasToBackend(
+      String vendorName, String category) async {
+    final headers = await AppInstanceService.instanceHeaders();
+    if (headers.isEmpty) return;
+
+    try {
+      final url = Uri.parse('$_baseUrl/api/aliases/stores/');
+      await http.post(
+        url,
+        headers: {...headers, 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'vendor_name': vendorName,
+          'category': category,
+        }),
+      ).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('[ExpenseService] store-alias sync error: $e');
+    }
   }
 }

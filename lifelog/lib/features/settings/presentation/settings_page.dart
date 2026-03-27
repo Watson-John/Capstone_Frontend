@@ -1,7 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/routes/app_routes.dart';
+import '../../../core/services/app_instance_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -15,12 +20,16 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _autoInProgress = true;
   String _swipeLtrAction = 'complete';
   String _swipeRtlAction = 'complete';
+  bool _donateAliases = false;
   bool _loaded = false;
+
+  String get _baseUrl => dotenv.env['BACKEND_URL'] ?? '';
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
+    _loadDonatePreferenceFromBackend();
   }
 
   Future<void> _loadPreferences() async {
@@ -30,8 +39,45 @@ class _SettingsPageState extends State<SettingsPage> {
       _autoInProgress = prefs.getBool('auto_in_progress_enabled') ?? true;
       _swipeLtrAction = prefs.getString('swipe_ltr_action') ?? 'complete';
       _swipeRtlAction = prefs.getString('swipe_rtl_action') ?? 'complete';
+      _donateAliases = prefs.getBool('donate_aliases_pref') ?? false;
       _loaded = true;
     });
+  }
+
+  /// Fetches the donate preference from the backend and updates state.
+  /// Falls back silently on error — local SharedPreferences value is used.
+  Future<void> _loadDonatePreferenceFromBackend() async {
+    final headers = await AppInstanceService.instanceHeaders();
+    if (headers.isEmpty) return;
+    try {
+      final url = Uri.parse('$_baseUrl/api/aliases/preferences/');
+      final response = await http.get(url, headers: headers)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final value = data['donate_aliases'] as bool? ?? false;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('donate_aliases_pref', value);
+        if (mounted) setState(() => _donateAliases = value);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _setDonateAliases(bool value) async {
+    setState(() => _donateAliases = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('donate_aliases_pref', value);
+
+    final headers = await AppInstanceService.instanceHeaders();
+    if (headers.isEmpty) return;
+    try {
+      final url = Uri.parse('$_baseUrl/api/aliases/preferences/');
+      await http.patch(
+        url,
+        headers: {...headers, 'Content-Type': 'application/json'},
+        body: jsonEncode({'donate_aliases': value}),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
   }
 
   Future<void> _setBool(String key, bool value) async {
@@ -221,6 +267,15 @@ class _SettingsPageState extends State<SettingsPage> {
             trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
             onTap: () =>
                 Navigator.pushNamed(context, AppRoutes.aliasManagement),
+          ),
+          const Divider(height: 1),
+          SwitchListTile(
+            secondary: Icon(Icons.volunteer_activism_outlined, color: cs.primary),
+            title: const Text('Donate Aliases'),
+            subtitle: const Text(
+                'Share your item & store corrections to improve results for everyone'),
+            value: _donateAliases,
+            onChanged: _setDonateAliases,
           ),
           const SizedBox(height: 24),
         ],

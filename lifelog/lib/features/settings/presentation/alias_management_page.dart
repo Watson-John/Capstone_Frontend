@@ -114,11 +114,12 @@ class _AliasManagementPageState extends State<AliasManagementPage>
         alias: alias,
         onSave: (name, category) async {
           final now = DateTime.now().toIso8601String();
-          await DatabaseHelper().upsertUserAlias(alias.copyWith(
+          final updated = alias.copyWith(
             decodedName: name,
             category: category,
             updatedAt: now,
-          ));
+          );
+          await DatabaseHelper().upsertUserAlias(updated);
           if (mounted) Navigator.pop(context);
           _load();
         },
