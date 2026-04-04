@@ -11,4 +11,5 @@ class AppRoutes {
   static const notifications = '/notifications';
   static const squiggleDemo = '/squiggle-demo';
   static const aliasManagement = '/alias-management';
+  static const addGratitude = '/add-gratitude';
 }

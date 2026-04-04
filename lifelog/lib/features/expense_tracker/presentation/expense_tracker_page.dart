@@ -230,6 +230,7 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
           builder: (_) => ReceiptDetailPage(expense: saved),
         ),
       );
+      if (mounted) _loadAll();
     } on ExpenseScanException catch (e) {
       if (!mounted) return;
       _showError(e.message);
@@ -397,13 +398,16 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
                           onToggleShowAll: () =>
                               setState(() => _showAll = !_showAll),
                           onDelete: _deleteExpense,
-                          onTap: (expense) => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ReceiptDetailPage(expense: expense),
-                            ),
-                          ),
+                          onTap: (expense) async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ReceiptDetailPage(expense: expense),
+                              ),
+                            );
+                            if (mounted) _loadAll();
+                          },
                           categoriesByExpenseId: _categoriesByExpenseId,
                         ),
                         const SizedBox(height: 96),

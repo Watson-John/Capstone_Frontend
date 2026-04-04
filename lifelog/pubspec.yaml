@@ -34,11 +34,14 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   integration_test:
     sdk: flutter
+  image_picker_platform_interface: ^2.0.0
+  plugin_platform_interface: ^2.0.0
 
 flutter:
   uses-material-design: true
   assets:
     - .env
+    - test/assets/restaurant test.jpg
     # Placeholder — tflite model files not yet bundled:
     # - assets/models/product_classifier.tflite
     # - assets/models/vocab.json
