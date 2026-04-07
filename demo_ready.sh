@@ -6,11 +6,20 @@
 #
 # What `pm clear` removes on the device:
 #   - SQLite database (lifelog.db): expenses, budgets, todos, notifications,
-#     moodLog, receipt_line_items, user_aliases
-#   - SharedPreferences: userName, device_id
+#     moodLog, receipt_line_items, user_aliases, store_aliases, gratitudeEntries
+#   - SharedPreferences: userName, device_id, app_instance_id,
+#     app_instance_token, notifications_enabled, auto_in_progress_enabled,
+#     swipe_ltr_action, swipe_rtl_action, donate_aliases_pref
 #   - FCM token (app must re-register on next launch)
 #   - Cached images from image_picker
 #   - All files in the app's internal/external storage
+#
+# NOTE: `pm clear` only wipes local (on-device) data. The backend retains
+#   the old AppInstance, UserPreference, and AliasDonation records as
+#   orphans. The app registers a new AppInstance on next launch.
+#   To clean up backend-side data, add a /api/aliases/instances/deactivate/
+#   endpoint and call it before `pm clear` (see the commented-out section
+#   near the end of this script).
 #
 # Usage:
 #   chmod +x demo_ready.sh   (first time only)
@@ -111,7 +120,7 @@ fi
 # Works on non-rooted devices. Also force-stops the app automatically.
 echo "$(next_step) Clearing all app data for $PACKAGE..."
 $ADB shell pm clear "$PACKAGE"
-echo "        Cleared: SQLite DB (7 tables), SharedPreferences,"
+echo "        Cleared: SQLite DB (9 tables), SharedPreferences,"
 echo "                 FCM token, cached images, app files."
 
 # ── Push test receipt image (optional) ──────────────────────────────────────
