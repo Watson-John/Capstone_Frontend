@@ -9,6 +9,7 @@ import '../../features/expense_tracker/domain/models/user_alias.dart';
 import '../../features/todo_list/domain/models/todo_model.dart';
 import '../../features/notifications_reminders/domain/models/in_app_notification.dart';
 import '../../features/mood_logger/domain/models/mood_log.dart';
+import '../../features/gratitude_journal/domain/models/gratitude_entry.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -27,7 +28,7 @@ class DatabaseHelper {
     final path = join(dbPath, 'lifelog.db');
     return openDatabase(
       path,
-      version: 12,
+      version: 13,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -126,7 +127,15 @@ class DatabaseHelper {
         updated_at TEXT NOT NULL
       )
     ''');
-    await _seedUserAliases(db);
+    await db.execute('''
+      CREATE TABLE gratitudeEntries (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        body     TEXT    NOT NULL,
+        prompt   TEXT,
+        dateTime TEXT    NOT NULL,
+        tags     TEXT
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -267,6 +276,18 @@ class DatabaseHelper {
           category TEXT NOT NULL,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
+        )
+      ''');
+    }
+
+    if (oldVersion < 13) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS gratitudeEntries (
+          id       INTEGER PRIMARY KEY AUTOINCREMENT,
+          body     TEXT    NOT NULL,
+          prompt   TEXT,
+          dateTime TEXT    NOT NULL,
+          tags     TEXT
         )
       ''');
     }
@@ -657,5 +678,33 @@ class DatabaseHelper {
   Future<int> deleteStoreAlias(int id) async {
     final db = await database;
     return db.delete('store_aliases', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- Gratitude Entry Operations ---
+
+  Future<int> insertGratitudeEntry(GratitudeEntry entry) async {
+    final db = await database;
+    return db.insert('gratitudeEntries', entry.toMap());
+  }
+
+  Future<List<GratitudeEntry>> getGratitudeEntries() async {
+    final db = await database;
+    final maps = await db.query('gratitudeEntries', orderBy: 'dateTime DESC');
+    return maps.map(GratitudeEntry.fromMap).toList();
+  }
+
+  Future<int> updateGratitudeEntry(GratitudeEntry entry) async {
+    final db = await database;
+    return db.update(
+      'gratitudeEntries',
+      entry.toMap(),
+      where: 'id = ?',
+      whereArgs: [entry.id],
+    );
+  }
+
+  Future<int> deleteGratitudeEntry(int id) async {
+    final db = await database;
+    return db.delete('gratitudeEntries', where: 'id = ?', whereArgs: [id]);
   }
 }

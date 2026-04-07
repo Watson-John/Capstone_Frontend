@@ -9,6 +9,7 @@ import 'features/onboarding/presentation/onboarding_page.dart';
 import 'features/settings/presentation/alias_management_page.dart';
 import 'features/settings/presentation/settings_page.dart';
 import 'features/todo_list/presentation/add_todo_page.dart';
+import 'features/gratitude_journal/presentation/add_gratitude_page.dart';
 import 'features/notifications_reminders/presentation/notifications_page.dart';
 import 'core/widgets/expressive_squiggle_demo.dart';
 
@@ -56,6 +57,8 @@ class LifelogApp extends StatelessWidget {
                 const ExpressiveSquiggleDemoPage(),
             AppRoutes.aliasManagement: (context) =>
                 const AliasManagementPage(),
+            AppRoutes.addGratitude: (context) =>
+                const AddGratitudePage(),
           },
         );
       },
