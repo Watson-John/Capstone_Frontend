@@ -31,13 +31,9 @@ class CalendarDropdown extends StatelessWidget {
   Map<int, Set<String>> _taskDays(int daysInMonth) {
     final map = <int, Set<String>>{};
     for (final todo in todos) {
-      final start = DateTime(
-          todo.startDate.year, todo.startDate.month, todo.startDate.day);
-      final end = DateTime(
-          todo.dueDate.year, todo.dueDate.month, todo.dueDate.day);
       for (int d = 1; d <= daysInMonth; d++) {
         final date = DateTime(viewMonth.year, viewMonth.month, d);
-        if (!date.isBefore(start) && !date.isAfter(end)) {
+        if (todo.isActiveOn(date)) {
           map.putIfAbsent(d, () => <String>{}).add(todo.status);
         }
       }

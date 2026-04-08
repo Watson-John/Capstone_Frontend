@@ -71,6 +71,29 @@ class Todo {
     );
   }
 
+  bool isActiveOn(DateTime date) {
+    final d = DateTime(date.year, date.month, date.day);
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(dueDate.year, dueDate.month, dueDate.day);
+
+    if (d.isBefore(start) || d.isAfter(end)) return false;
+    if (!isRecurring) return true;
+    if (recurrenceType == 'daily') return true;
+
+    if (recurrenceType == 'weekly') {
+      if (recurrenceDays == null || recurrenceDays!.isEmpty) return true;
+      const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      final dayLabel = dayNames[d.weekday - 1];
+      return recurrenceDays!.split(',').contains(dayLabel);
+    }
+
+    if (recurrenceType == 'monthly') {
+      return d.day == start.day;
+    }
+
+    return true;
+  }
+
   Todo copyWith({
     int? id,
     String? task,

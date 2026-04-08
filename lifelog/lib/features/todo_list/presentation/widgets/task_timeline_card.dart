@@ -51,6 +51,29 @@ class TaskTimelineCard extends StatelessWidget {
     return '$h:$m $period';
   }
 
+  String _fmtDate(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}';
+  }
+
+  String _dateLine() {
+    final sameDay = todo.startDate.year == todo.dueDate.year &&
+        todo.startDate.month == todo.dueDate.month &&
+        todo.startDate.day == todo.dueDate.day;
+    return sameDay
+        ? _fmtDate(todo.startDate)
+        : '${_fmtDate(todo.startDate)} – ${_fmtDate(todo.dueDate)}';
+  }
+
+  String _timeLine() {
+    return todo.isAllDay
+        ? 'All Day'
+        : '${_fmtTime(todo.startDate)} – ${_fmtTime(todo.dueDate)}';
+  }
+
   static Color _actionColor(String action) {
     switch (action) {
       case 'complete':
@@ -161,9 +184,11 @@ class TaskTimelineCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    todo.isAllDay
-                        ? 'All Day'
-                        : '${_fmtTime(todo.startDate)} \u2013 ${_fmtTime(todo.dueDate)}',
+                    _dateLine(),
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  ),
+                  Text(
+                    _timeLine(),
                     style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                   ),
                 ],

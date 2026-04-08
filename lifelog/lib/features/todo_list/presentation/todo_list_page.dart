@@ -152,14 +152,7 @@ class TodoListPageState extends State<TodoListPage> {
   }
 
   List<Todo> get _todosForSelectedDate {
-    final sel = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day);
-    return _todos.where((t) {
-      final start =
-          DateTime(t.startDate.year, t.startDate.month, t.startDate.day);
-      final end = DateTime(t.dueDate.year, t.dueDate.month, t.dueDate.day);
-      return !sel.isBefore(start) && !sel.isAfter(end);
-    }).toList();
+    return _todos.where((t) => t.isActiveOn(_selectedDate)).toList();
   }
 
   @override
