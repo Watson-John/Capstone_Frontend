@@ -1,11 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/database_helper.dart';
-import '../../../core/services/notification_service.dart';
+import '../../../core/services/local_notification_service.dart';
 import '../domain/models/todo_model.dart';
 import '../../expense_tracker/domain/models/category_styles.dart';
 
@@ -193,62 +189,32 @@ class _AddTodoPageState extends State<AddTodoPage> {
       category: _labelColor,
     );
 
+    Todo? scheduled;
+    Object? scheduleError;
     if (widget.todoToEdit == null) {
-      await DatabaseHelper().insertTodo(newTodo);
-      _scheduleBackendNotification(newTodo);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Task added!')));
-      }
+      final newId = await DatabaseHelper().insertTodo(newTodo);
+      scheduled = newTodo.copyWith(id: newId);
     } else {
       await DatabaseHelper().updateTodo(newTodo);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Changes saved successfully!')));
-      }
+      scheduled = newTodo;
+    }
+    try {
+      await LocalNotificationService.instance.scheduleTaskReminder(scheduled);
+    } catch (e, st) {
+      scheduleError = e;
+      debugPrint('scheduleTaskReminder failed: $e\n$st');
+    }
+    if (mounted) {
+      final message = scheduleError != null
+          ? 'Saved, but reminder could not be scheduled. Check notification permissions.'
+          : (widget.todoToEdit == null
+              ? 'Task added!'
+              : 'Changes saved successfully!');
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     }
 
     if (mounted) Navigator.pop(context, true);
-  }
-
-  void _scheduleBackendNotification(Todo todo) {
-    Future(() async {
-      try {
-        if (!await NotificationService.isEnabled()) return;
-        final prefs = await SharedPreferences.getInstance();
-        final deviceId = prefs.getString('device_id');
-        final baseUrl = dotenv.env['BACKEND_URL'];
-        if (deviceId == null || baseUrl == null) return;
-
-        final notifyAt = todo.reminderMinutes != null
-            ? todo.startDate
-                .subtract(Duration(minutes: todo.reminderMinutes!))
-                .toUtc()
-            : todo.startDate.toUtc();
-
-        final url = Uri.parse('$baseUrl/api/notifications/schedule/todo/');
-        http
-            .post(
-              url,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'notification': todo.task,
-                'date_time': notifyAt.toIso8601String(),
-                'device_id': deviceId,
-              }),
-            )
-            .timeout(const Duration(seconds: 10))
-            .then((res) {
-          if (res.statusCode != 200 && res.statusCode != 201) {
-            debugPrint('Backend notification failed: ${res.body}');
-          }
-        }).catchError((e) {
-          debugPrint('Error scheduling notification: $e');
-        });
-      } catch (e) {
-        debugPrint('Error preparing notification: $e');
-      }
-    });
   }
 
   String _formatDate(DateTime d) =>

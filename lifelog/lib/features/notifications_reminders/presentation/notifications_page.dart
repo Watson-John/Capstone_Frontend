@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/database/database_helper.dart';
-import '../../../core/services/notification_service.dart';
 import '../domain/models/in_app_notification.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -56,13 +55,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFF1C1C1C)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.bug_report),
-            tooltip: 'Send test notification',
-            onPressed: () => NotificationService().showTestNotification(),
-          ),
-        ],
       ),
       body: FutureBuilder<List<InAppNotification>>(
         future: _notificationsFuture,
@@ -83,13 +75,36 @@ class _NotificationsPageState extends State<NotificationsPage> {
           final notifications = snapshot.data ?? [];
 
           if (notifications.isEmpty) {
-            return const Center(
-              child: Text(
-                'No notifications yet 📭',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF4A4A4A),
+            final cs = Theme.of(context).colorScheme;
+            final textTheme = Theme.of(context).textTheme;
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.notifications_none_outlined,
+                      size: 48,
+                      color: cs.outlineVariant,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No notifications yet',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Reminders and alerts will appear here.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
             );

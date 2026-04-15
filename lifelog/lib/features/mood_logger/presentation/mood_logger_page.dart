@@ -6,6 +6,7 @@ import '../../../core/widgets/app_page_header.dart';
 import '../domain/models/mood_log.dart';
 import '../domain/models/mood_tag_styles.dart';
 import 'add_mood_page.dart';
+import 'widgets/mood_analysis_card.dart';
 import 'widgets/mood_calendar.dart';
 import 'widgets/mood_card_shell.dart';
 import 'widgets/mood_day_details_sheet.dart';
@@ -257,6 +258,10 @@ class _MoodLoggerPageState extends State<MoodLoggerPage> {
                         },
                       ),
                     ),
+                    const SizedBox(height: 16),
+
+                    // ── Mood Trends (AI analysis) ────────────────────────
+                    MoodAnalysisCard(moodLogs: _moodLogs),
                     const SizedBox(height: 16),
 
                     // ── Analytics Card (filter + all charts) ─────────────

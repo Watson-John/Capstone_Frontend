@@ -41,8 +41,8 @@ void main() {
       await tester.enterText(titleField, 'Buy groceries');
       await tester.pump();
 
-      // Tap "Add Task" to save.
-      await tapAndSettle(tester, find.text('Add Task'));
+      // Tap "Add Task" to save (use FilledButton to avoid matching the AppBar title).
+      await tapAndSettle(tester, find.widgetWithText(FilledButton, 'Add Task'));
 
       // Wait for SnackBar confirmation.
       await waitFor(tester, find.text('Task added!'),
@@ -88,8 +88,8 @@ void main() {
           find.widgetWithText(TextField, 'Details'), 'Weekly standup call');
       await tester.pump();
 
-      // Save.
-      await tapAndSettle(tester, find.text('Add Task'));
+      // Save (use FilledButton to avoid matching the AppBar title).
+      await tapAndSettle(tester, find.widgetWithText(FilledButton, 'Add Task'));
 
       // Wait for confirmation.
       await waitFor(tester, find.text('Task added!'),
@@ -116,8 +116,8 @@ void main() {
       await tapAndSettle(tester, find.byTooltip('Add'));
       await waitFor(tester, find.text('Add Your Task'), timeoutSecs: 5);
 
-      // Tap "Add Task" without entering a title.
-      await tapAndSettle(tester, find.text('Add Task'));
+      // Tap "Add Task" without entering a title (use FilledButton to avoid matching the AppBar title).
+      await tapAndSettle(tester, find.widgetWithText(FilledButton, 'Add Task'));
 
       // Should still be on the AddTodoPage (no navigation, no snackbar).
       await tester.pump(const Duration(seconds: 1));
@@ -153,7 +153,7 @@ void main() {
       // The recurring switch is the one near the "RECURRING" label.
       // Scroll down first to make it visible.
       await tester.drag(
-          find.byType(SingleChildScrollView), const Offset(0, -200));
+          find.byType(SingleChildScrollView).first, const Offset(0, -200));
       await tester.pump();
 
       await waitFor(tester, find.text('RECURRING'),
@@ -171,10 +171,10 @@ void main() {
       // Save.
       // Scroll down to see the save button.
       await tester.drag(
-          find.byType(SingleChildScrollView), const Offset(0, -100));
+          find.byType(SingleChildScrollView).first, const Offset(0, -100));
       await tester.pump();
 
-      await tapAndSettle(tester, find.text('Add Task'));
+      await tapAndSettle(tester, find.widgetWithText(FilledButton, 'Add Task'));
 
       await waitFor(tester, find.text('Task added!'),
           timeoutSecs: 5,

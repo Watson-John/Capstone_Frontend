@@ -1,5 +1,7 @@
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'app.dart';
 import 'core/routes/app_routes.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/local_notification_service.dart';
 import 'firebase_options.dart'; // Uncomment after running flutterfire configure
 
 import 'core/database/database_helper.dart';
@@ -40,6 +43,15 @@ void main() async {
   // Load environment variables
   await dotenv.load(fileName: ".env");
 
+  // awesome_notifications must be initialized before runApp, even without
+  // permission. Channels are declared here so they exist for the first
+  // scheduling call.
+  await AwesomeNotifications().initialize(
+    'resource://drawable/ic_stat_notification',
+    LocalNotificationService.buildChannels(),
+    debug: kDebugMode,
+  );
+
   // Register anonymous app-instance identity (no-op if already registered).
   await AppInstanceService.registerIfNeeded();
 
@@ -52,7 +64,12 @@ void main() async {
     // Set up background messaging handler
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // Initialize Notification Service
+    // Initialize local (offline) notifications first (requests Android permissions).
+    await LocalNotificationService.instance.init();
+    await LocalNotificationService.instance.rehydrateTaskReminders();
+    await LocalNotificationService.instance.applyDailySchedulesFromPrefs();
+
+    // Initialize Firebase Notification Service (requests Firebase permissions).
     final notificationService = NotificationService();
     // Do not await this so it doesn't block runApp if backend is slow/unreachable
     notificationService.initialize();

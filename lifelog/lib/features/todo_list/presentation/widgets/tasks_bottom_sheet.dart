@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/services/local_notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../expense_tracker/domain/models/category_styles.dart';
 import '../../domain/models/todo_model.dart';
@@ -80,6 +81,8 @@ void showTasksBottomSheet(
                               onDelete: () async {
                                 if (todo.id != null) {
                                   await DatabaseHelper().deleteTodo(todo.id!);
+                                  await LocalNotificationService.instance
+                                      .cancelTaskReminder(todo.id!);
                                   if (sheetContext.mounted) {
                                     Navigator.pop(sheetContext);
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -252,6 +255,13 @@ class _TaskCard extends StatelessWidget {
                         if (newValue != null && newValue != todo.status) {
                           final updatedTodo = todo.copyWith(status: newValue);
                           await DatabaseHelper().updateTodo(updatedTodo);
+                          if (newValue == 'Completed' && updatedTodo.id != null) {
+                            await LocalNotificationService.instance
+                                .cancelTaskReminder(updatedTodo.id!);
+                          } else {
+                            await LocalNotificationService.instance
+                                .scheduleTaskReminder(updatedTodo);
+                          }
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(

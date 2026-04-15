@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../expense_tracker/domain/models/category_styles.dart';
 import '../../domain/models/todo_model.dart';
 
 class CalendarDropdown extends StatelessWidget {
@@ -28,17 +29,27 @@ class CalendarDropdown extends StatelessWidget {
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
-  Map<int, Set<String>> _taskDays(int daysInMonth) {
-    final map = <int, Set<String>>{};
+  static Color _dotColorFor(Todo todo) {
+    if (todo.category != null) {
+      return styleForCategory(todo.category!).foreground;
+    }
+    switch (todo.status) {
+      case 'Completed':
+        return AppTheme.accentGreen;
+      case 'In Progress':
+        return const Color(0xFF8A4F00);
+      default:
+        return AppTheme.accentAmber;
+    }
+  }
+
+  Map<int, Set<Color>> _taskDays(int daysInMonth) {
+    final map = <int, Set<Color>>{};
     for (final todo in todos) {
-      final start = DateTime(
-          todo.startDate.year, todo.startDate.month, todo.startDate.day);
-      final end = DateTime(
-          todo.dueDate.year, todo.dueDate.month, todo.dueDate.day);
       for (int d = 1; d <= daysInMonth; d++) {
         final date = DateTime(viewMonth.year, viewMonth.month, d);
-        if (!date.isBefore(start) && !date.isAfter(end)) {
-          map.putIfAbsent(d, () => <String>{}).add(todo.status);
+        if (todo.appearsOnDate(date)) {
+          map.putIfAbsent(d, () => <Color>{}).add(_dotColorFor(todo));
         }
       }
     }
@@ -117,7 +128,7 @@ class CalendarDropdown extends StatelessWidget {
                     DateTime(viewMonth.year, viewMonth.month, day);
                 final isToday = date == todayNorm;
                 final isSelected = date == selectedNorm;
-                final statuses = taskDays[day];
+                final dotColors = taskDays[day];
 
                 final bgColor = isToday
                     ? cs.primary
@@ -159,11 +170,11 @@ class CalendarDropdown extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          if (statuses != null)
+                          if (dotColors != null)
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               mainAxisSize: MainAxisSize.min,
-                              children: _buildDots(statuses),
+                              children: _buildDots(dotColors),
                             )
                           else
                             const SizedBox(height: 5),
@@ -182,11 +193,7 @@ class CalendarDropdown extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildDots(Set<String> statuses) {
-    final colors = <Color>[];
-    if (statuses.contains('To Do')) colors.add(AppTheme.accentAmber);
-    if (statuses.contains('In Progress')) colors.add(const Color(0xFF1F4A7A));
-    if (statuses.contains('Completed')) colors.add(AppTheme.accentGreen);
+  List<Widget> _buildDots(Set<Color> colors) {
     return colors
         .take(3)
         .map((c) => Container(
