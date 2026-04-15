@@ -71,6 +71,33 @@ class Todo {
     );
   }
 
+  /// Returns true if this task should appear on [date].
+  ///
+  /// For non-recurring tasks: any date within [startDate, dueDate].
+  /// For recurring tasks: within the range AND on the correct recurrence day.
+  bool appearsOnDate(DateTime date) {
+    final d = DateTime(date.year, date.month, date.day);
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(dueDate.year, dueDate.month, dueDate.day);
+
+    if (d.isBefore(start) || d.isAfter(end)) return false;
+    if (!isRecurring || recurrenceType == null) return true;
+
+    switch (recurrenceType) {
+      case 'daily':
+        return true;
+      case 'weekly':
+        if (recurrenceDays == null || recurrenceDays!.isEmpty) return true;
+        const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        final dayName = weekdayNames[date.weekday - 1];
+        return recurrenceDays!.split(',').contains(dayName);
+      case 'monthly':
+        return date.day == startDate.day;
+      default:
+        return true;
+    }
+  }
+
   Todo copyWith({
     int? id,
     String? task,

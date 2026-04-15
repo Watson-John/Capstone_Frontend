@@ -6,8 +6,10 @@ class AppRoutes {
   static const gratitudeJournal = '/gratitude-journal';
   static const todoList = '/todo-list';
   static const settings = '/settings';
+  static const notificationsSettings = '/settings/notifications';
   static const addExpense = '/add-expense';
   static const addTodo = '/add-todo';
+  static const addMood = '/add-mood';
   static const notifications = '/notifications';
   static const squiggleDemo = '/squiggle-demo';
   static const aliasManagement = '/alias-management';

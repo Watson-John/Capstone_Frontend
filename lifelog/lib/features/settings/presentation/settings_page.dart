@@ -16,7 +16,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _notificationsEnabled = true;
   bool _autoInProgress = true;
   String _swipeLtrAction = 'complete';
   String _swipeRtlAction = 'complete';
@@ -35,10 +34,9 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
       _autoInProgress = prefs.getBool('auto_in_progress_enabled') ?? true;
       _swipeLtrAction = prefs.getString('swipe_ltr_action') ?? 'complete';
-      _swipeRtlAction = prefs.getString('swipe_rtl_action') ?? 'complete';
+      _swipeRtlAction = prefs.getString('swipe_rtl_action') ?? 'delete';
       _donateAliases = prefs.getBool('donate_aliases_pref') ?? false;
       _loaded = true;
     });
@@ -215,15 +213,13 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           // ── Notifications ─────────────────────────────────────
           _SectionHeader(label: 'Notifications', cs: cs),
-          SwitchListTile(
-            secondary: Icon(Icons.notifications_outlined, color: cs.primary),
-            title: const Text('Push Notifications'),
-            subtitle: const Text('Enable or disable all notifications'),
-            value: _notificationsEnabled,
-            onChanged: (v) {
-              _setBool('notifications_enabled', v);
-              setState(() => _notificationsEnabled = v);
-            },
+          ListTile(
+            leading: Icon(Icons.notifications_outlined, color: cs.primary),
+            title: const Text('Notifications'),
+            subtitle: const Text('Categories, times, and delivery'),
+            trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            onTap: () => Navigator.pushNamed(
+                context, AppRoutes.notificationsSettings),
           ),
           const Divider(height: 1),
 
