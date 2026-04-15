@@ -62,7 +62,7 @@ class ScanningOverlay extends StatelessWidget {
                           child: Icon(
                             Icons.document_scanner_rounded,
                             size: 36,
-                            color: cs.onPrimaryContainer,
+                            color: cs.primary,
                           ),
                         ),
                       ),

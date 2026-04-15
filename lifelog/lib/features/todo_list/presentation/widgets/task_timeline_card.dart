@@ -44,6 +44,14 @@ class TaskTimelineCard extends StatelessWidget {
     }
   }
 
+  /// Left bar color: category foreground when a label is set, else status color.
+  Color _leftBarColor(ColorScheme cs) {
+    if (todo.category != null) {
+      return styleForCategory(todo.category!).foreground;
+    }
+    return _statusStripe(cs);
+  }
+
   String _fmtTime(DateTime dt) {
     final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
     final m = dt.minute.toString().padLeft(2, '0');
@@ -114,7 +122,7 @@ class TaskTimelineCard extends StatelessWidget {
               height: 44,
               margin: const EdgeInsets.only(top: 2),
               decoration: BoxDecoration(
-                color: _statusStripe(cs),
+                color: _leftBarColor(cs),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

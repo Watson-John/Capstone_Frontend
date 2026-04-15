@@ -1,26 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/database_helper.dart';
 import '../../features/notifications_reminders/domain/models/in_app_notification.dart';
-
-const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-  'lifelog_channel',
-  'Lifelog Notifications',
-  description: 'Task reminders and alerts',
-  importance: Importance.max,
-);
-
-final FlutterLocalNotificationsPlugin _localNotifications =
-    FlutterLocalNotificationsPlugin();
+import 'local_notification_service.dart';
 
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
@@ -32,16 +22,10 @@ class NotificationService {
   }
 
   Future<void> initialize() async {
-    // Set up local notifications (Android heads-up banners)
-    const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@drawable/ic_stat_notification');
-    await _localNotifications.initialize(
-      settings: const InitializationSettings(android: androidSettings),
-    );
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_channel);
+    // The awesome_notifications singleton is owned and initialized by
+    // LocalNotificationService.init(); do NOT re-initialize it here or
+    // its action listeners will be silently overwritten.
+
     // Request permission for iOS and Android 13+
     NotificationSettings settings = await _firebaseMessaging.requestPermission(
       alert: true,
@@ -73,6 +57,13 @@ class NotificationService {
       sound: true,
     );
 
+    // Handle FCM taps that launch or resume the app.
+    final initialMessage = await _firebaseMessaging.getInitialMessage();
+    if (initialMessage != null) {
+      _routeFromRemoteMessage(initialMessage);
+    }
+    FirebaseMessaging.onMessageOpenedApp.listen(_routeFromRemoteMessage);
+
     // Listen for foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       debugPrint('Got a message whilst in the foreground!');
@@ -95,45 +86,30 @@ class NotificationService {
 
         // Show heads-up banner only if notifications are enabled in settings
         if (!await NotificationService.isEnabled()) return;
-        await _localNotifications.show(
-          id: message.hashCode,
+        await LocalNotificationService.instance.showFromFcm(
+          type: message.data['type']?.toString(),
           title: message.notification?.title,
           body: message.notification?.body,
-          notificationDetails: NotificationDetails(
-            android: AndroidNotificationDetails(
-              'lifelog_channel',
-              'Lifelog Notifications',
-              channelDescription: 'Task reminders and alerts',
-              importance: Importance.max,
-              priority: Priority.high,
-              icon: '@drawable/ic_stat_notification',
-              color: const Color(0xFF6750A4),
-            ),
-          ),
+          extra: Map<String, dynamic>.from(message.data),
         );
       }
     });
   }
 
-  /// Fire a local test notification to preview the icon / style.
-  Future<void> showTestNotification() async {
-    if (!await NotificationService.isEnabled()) return;
-    await _localNotifications.show(
-      id: 0,
-      title: 'Lifelog Test',
-      body: 'This is a test notification to preview the app icon.',
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          'lifelog_channel',
-          'Lifelog Notifications',
-          channelDescription: 'Task reminders and alerts',
-          importance: Importance.max,
-          priority: Priority.high,
-          icon: '@drawable/ic_stat_notification',
-          color: const Color(0xFF6750A4),
-        ),
-      ),
-    );
+  void _routeFromRemoteMessage(RemoteMessage message) {
+    final type = message.data['type']?.toString();
+    debugPrint('FCM tap routed: type=$type');
+    switch (type) {
+      case 'gratitude':
+        pendingRoute.value = '/add-gratitude';
+        break;
+      case 'mood':
+        pendingRoute.value = '/add-mood';
+        break;
+      case 'task':
+        pendingRoute.value = '/todo-list';
+        break;
+    }
   }
 
   Future<void> _generateAndSendToken() async {
@@ -163,6 +139,13 @@ class NotificationService {
     final String platform = kIsWeb ? 'web' : Platform.operatingSystem;
     debugPrint('Detected platform: $platform');
 
+    String tz = 'UTC';
+    try {
+      tz = await FlutterTimezone.getLocalTimezone();
+    } catch (e) {
+      debugPrint('Could not resolve local IANA tz, defaulting to UTC: $e');
+    }
+
     final url = Uri.parse('$baseUrl/api/commons/token/');
     debugPrint('Target API URL resolved to: $url');
 
@@ -170,6 +153,7 @@ class NotificationService {
       final bodyPayload = jsonEncode({
         'token': token,
         'platform': platform,
+        'timezone': tz,
       });
       debugPrint('Request Body Payload: $bodyPayload');
 
