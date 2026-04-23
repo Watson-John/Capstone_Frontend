@@ -368,6 +368,67 @@ class _AddTodoPageState extends State<AddTodoPage> {
                 ),
                 const SizedBox(height: 16),
 
+                // ── Recurring ───────────────────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _sectionLabel(context, 'RECURRING'),
+                    Switch(
+                      value: _isRecurring,
+                      onChanged: (v) => setState(() {
+                        _isRecurring = v;
+                        if (v) _recurrenceType ??= 'daily';
+                      }),
+                    ),
+                  ],
+                ),
+                if (_isRecurring) ...[
+                  Wrap(
+                    spacing: 8,
+                    children: ['daily', 'weekly', 'monthly'].map((type) {
+                      final selected = _recurrenceType == type;
+                      return ChoiceChip(
+                        label: Text(
+                            type[0].toUpperCase() + type.substring(1)),
+                        selected: selected,
+                        onSelected: (_) =>
+                            setState(() => _recurrenceType = type),
+                        selectedColor: cs.primaryContainer,
+                        side: BorderSide(
+                            color: selected
+                                ? cs.primary
+                                : cs.outlineVariant),
+                      );
+                    }).toList(),
+                  ),
+                  if (_recurrenceType == 'weekly') ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      children: _weekDays.map((day) {
+                        final on = _recurrenceDays.contains(day);
+                        return FilterChip(
+                          label: Text(day),
+                          selected: on,
+                          onSelected: (v) => setState(() {
+                            if (v) {
+                              _recurrenceDays.add(day);
+                            } else {
+                              _recurrenceDays.remove(day);
+                            }
+                          }),
+                          selectedColor: cs.primaryContainer,
+                          side: BorderSide(
+                              color:
+                                  on ? cs.primary : cs.outlineVariant),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                ],
+                const SizedBox(height: 16),
+
                 // ── Dates (context-aware) ───────────────────────────────
                 _sectionLabel(context, 'DATES'),
                 if (!_isRecurring) ...[
@@ -532,69 +593,6 @@ class _AddTodoPageState extends State<AddTodoPage> {
                   onChanged: (v) => setState(() => _reminderMinutes = v),
                 ),
                 const SizedBox(height: 16),
-
-                // ── Recurring ───────────────────────────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _sectionLabel(context, 'RECURRING'),
-                    Switch(
-                      value: _isRecurring,
-                      onChanged: (v) => setState(() {
-                        _isRecurring = v;
-                        if (v) _recurrenceType ??= 'daily';
-                      }),
-                    ),
-                  ],
-                ),
-                if (_isRecurring) ...[
-                  Wrap(
-                    spacing: 8,
-                    children: ['daily', 'weekly', 'monthly'].map((type) {
-                      final selected = _recurrenceType == type;
-                      return ChoiceChip(
-                        label: Text(
-                            type[0].toUpperCase() + type.substring(1)),
-                        selected: selected,
-                        onSelected: (_) =>
-                            setState(() => _recurrenceType = type),
-                        selectedColor: cs.primaryContainer,
-                        side: BorderSide(
-                            color: selected
-                                ? cs.primary
-                                : cs.outlineVariant),
-                      );
-                    }).toList(),
-                  ),
-                  if (_recurrenceType == 'weekly') ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      children: _weekDays.map((day) {
-                        final on = _recurrenceDays.contains(day);
-                        return FilterChip(
-                          label: Text(day),
-                          selected: on,
-                          onSelected: (v) => setState(() {
-                            if (v) {
-                              _recurrenceDays.add(day);
-                            } else {
-                              _recurrenceDays.remove(day);
-                            }
-                          }),
-                          selectedColor: cs.primaryContainer,
-                          side: BorderSide(
-                              color:
-                                  on ? cs.primary : cs.outlineVariant),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                ],
-                const SizedBox(height: 8),
-
-                const SizedBox(height: 4),
 
                 // ── Save ────────────────────────────────────────────────
                 Align(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/services/local_notification_service.dart';
 import '../../../expense_tracker/domain/models/budget.dart';
 import '../../../expense_tracker/domain/models/expense.dart';
 import '../../../expense_tracker/presentation/widgets/expense_summary_card.dart';
@@ -17,6 +19,7 @@ class _DashboardBudgetCardState extends State<DashboardBudgetCard> {
   bool _isLoading = true;
   Budget? _budget;
   double _spent = 0;
+  int _thresholdPct = 20;
 
   @override
   void initState() {
@@ -26,6 +29,7 @@ class _DashboardBudgetCardState extends State<DashboardBudgetCard> {
 
   Future<void> _load() async {
     final db = DatabaseHelper();
+    final prefs = await SharedPreferences.getInstance();
     final results = await Future.wait([db.getBudget(), db.getExpenses()]);
     if (!mounted) return;
 
@@ -49,6 +53,7 @@ class _DashboardBudgetCardState extends State<DashboardBudgetCard> {
     setState(() {
       _budget = budget;
       _spent = spent;
+      _thresholdPct = prefs.getInt(kBudgetThresholdKey) ?? 20;
       _isLoading = false;
     });
   }
@@ -70,6 +75,7 @@ class _DashboardBudgetCardState extends State<DashboardBudgetCard> {
       budgetAmount: _budget!.limitAmount,
       spent: _spent,
       onEditBudget: () {},
+      alertThresholdPct: _thresholdPct,
     );
   }
 }
