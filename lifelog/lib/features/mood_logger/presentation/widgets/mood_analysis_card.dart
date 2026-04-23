@@ -88,6 +88,7 @@ class _MoodAnalysisCardState extends State<MoodAnalysisCard> {
     final cs = Theme.of(context).colorScheme;
     return MoodCardShell(
       title: 'Mood Trends',
+      titleIcon: Icons.auto_awesome,
       child: _buildBody(cs),
     );
   }

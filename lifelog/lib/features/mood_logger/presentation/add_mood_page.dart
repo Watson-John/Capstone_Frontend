@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
 import '../../../core/database/database_helper.dart';
+import '../data/mood_analysis_service.dart';
 import '../domain/models/mood_log.dart';
 import '../domain/models/mood_tag_styles.dart';
 
@@ -72,43 +70,20 @@ class _AddMoodPageState extends State<AddMoodPage> {
     });
 
     try {
-      final baseUrl = dotenv.env['BACKEND_URL'];
-      if (baseUrl != null) {
-        final url = Uri.parse('$baseUrl/api/notifications/analyze-mood/');
-        final response = await http
-            .post(
-              url,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'mood': mood.emoji,
-                'description': desc.isNotEmpty ? desc : mood.label,
-              }),
-            )
-            .timeout(const Duration(seconds: 15));
-
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          final data = jsonDecode(response.body);
-          if (mounted) {
-            setState(() {
-              _aiResponse = data['message'] ?? 'Analyzed successfully.';
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              _aiResponse =
-                  'Error: Failed to analyze mood (Status ${response.statusCode}).';
-            });
-          }
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _aiResponse = 'Error: Backend URL not configured.';
-          });
-        }
+      final history = await DatabaseHelper().getMoodLogs();
+      final message = await MoodAnalysisService().fetchCurrentMoodAnalysis(
+        mood: mood.label,
+        description: desc.isNotEmpty ? desc : mood.label,
+        energy: _energy,
+        tags: _selectedTags.toList(),
+        history: history,
+      );
+      if (mounted) {
+        setState(() {
+          _aiResponse = message;
+        });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _aiResponse = 'Error: Could not connect to the server.';

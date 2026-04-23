@@ -27,6 +27,40 @@ class MoodAnalysisService {
         )
         .timeout(const Duration(seconds: 30));
 
+    return _extractMessage(response);
+  }
+
+  Future<String> fetchCurrentMoodAnalysis({
+    required String mood,
+    required String description,
+    String? energy,
+    List<String> tags = const [],
+    required List<MoodLog> history,
+  }) async {
+    final baseUrl = dotenv.env['BACKEND_URL'];
+    if (baseUrl == null || baseUrl.isEmpty) {
+      throw Exception('BACKEND_URL not configured');
+    }
+
+    final url = Uri.parse('$baseUrl/api/notifications/analyze-mood/');
+    final response = await http
+        .post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'mood': mood,
+            'description': description,
+            'energy': energy ?? '',
+            'tags': tags,
+            'persistence': _buildPersistence(history),
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+
+    return _extractMessage(response);
+  }
+
+  String _extractMessage(http.Response response) {
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body);
       final message = data['message'];

@@ -28,6 +28,8 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
   TimeOfDay _gratitudeTime = const TimeOfDay(hour: 8, minute: 0);
   String _gratitudeMode = 'on_release';
   int _snoozeMinutes = 10;
+  bool _budgetAlertsOn = true;
+  int _budgetThresholdPct = 20;
 
   String get _baseUrl => dotenv.env['BACKEND_URL'] ?? '';
 
@@ -52,6 +54,8 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
           fallback: const TimeOfDay(hour: 8, minute: 0));
       _gratitudeMode = prefs.getString(kGratitudeModeKey) ?? 'on_release';
       _snoozeMinutes = prefs.getInt(kSnoozeMinutesKey) ?? 10;
+      _budgetAlertsOn = prefs.getBool(kBudgetAlertsEnabledKey) ?? true;
+      _budgetThresholdPct = prefs.getInt(kBudgetThresholdKey) ?? 20;
       _loaded = true;
     });
   }
@@ -177,6 +181,67 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
     } catch (e) {
       debugPrint('gratitude-preference POST failed: $e');
     }
+  }
+
+  Future<void> _setBudgetAlerts(bool v) async {
+    setState(() => _budgetAlertsOn = v);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(kBudgetAlertsEnabledKey, v);
+  }
+
+  Future<void> _pickBudgetThreshold() async {
+    const options = [10, 15, 20, 25, 30];
+    final cs = Theme.of(context).colorScheme;
+    final chosen = await showModalBottomSheet<int>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Alert Threshold',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    )),
+            const SizedBox(height: 4),
+            Text('Notify when budget remaining falls below…',
+                style: Theme.of(ctx)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: cs.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            for (final pct in options)
+              ListTile(
+                title: Text('Under $pct% remaining'),
+                trailing: pct == _budgetThresholdPct
+                    ? Icon(Icons.check, color: cs.primary)
+                    : null,
+                onTap: () => Navigator.pop(ctx, pct),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null) return;
+    setState(() => _budgetThresholdPct = chosen);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(kBudgetThresholdKey, chosen);
   }
 
   Future<void> _pickSnoozeMinutes() async {
@@ -333,6 +398,30 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                 onTap: _pickGratitudeTime,
               ),
           ],
+          const Divider(height: 1),
+
+          _SectionHeader(label: 'Budget Alerts', cs: cs),
+          SwitchListTile(
+            secondary: Icon(Icons.account_balance_wallet_outlined,
+                color: cs.primary),
+            title: const Text('Budget threshold alert'),
+            subtitle: const Text('Notify when remaining budget is running low'),
+            value: _budgetAlertsOn,
+            onChanged: categoriesEnabled ? _setBudgetAlerts : null,
+          ),
+          ListTile(
+            enabled: categoriesEnabled && _budgetAlertsOn,
+            leading: Icon(Icons.tune_outlined,
+                color: (categoriesEnabled && _budgetAlertsOn)
+                    ? cs.primary
+                    : cs.onSurfaceVariant),
+            title: const Text('Alert threshold'),
+            subtitle: Text('Under $_budgetThresholdPct% remaining'),
+            trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            onTap: (categoriesEnabled && _budgetAlertsOn)
+                ? _pickBudgetThreshold
+                : null,
+          ),
           const SizedBox(height: 24),
         ],
       ),

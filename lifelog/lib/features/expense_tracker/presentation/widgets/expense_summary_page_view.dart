@@ -11,6 +11,7 @@ class ExpenseSummaryPageView extends StatefulWidget {
     required this.categorySpending,
     required this.categoryTotal,
     required this.onEditBudget,
+    this.alertThresholdPct = 20,
   });
 
   final double budgetAmount;
@@ -18,6 +19,7 @@ class ExpenseSummaryPageView extends StatefulWidget {
   final List<MapEntry<String, double>> categorySpending;
   final double categoryTotal;
   final VoidCallback onEditBudget;
+  final int alertThresholdPct;
 
   @override
   State<ExpenseSummaryPageView> createState() => _ExpenseSummaryPageViewState();
@@ -53,6 +55,7 @@ class _ExpenseSummaryPageViewState extends State<ExpenseSummaryPageView> {
                     budgetAmount: widget.budgetAmount,
                     spent: widget.spent,
                     onEditBudget: widget.onEditBudget,
+                    alertThresholdPct: widget.alertThresholdPct,
                   ),
                   CategoryBreakdownCard(
                     categories: widget.categorySpending,
