@@ -1,21 +1,31 @@
 import '../database/database_helper.dart';
 import '../../features/mood_logger/domain/models/mood_log.dart';
 import '../../features/gratitude_journal/domain/models/gratitude_entry.dart';
+import '../../features/todo_list/domain/models/todo_model.dart';
 
 class DemoSeedService {
   static final _db = DatabaseHelper();
 
   static Future<void> seedIfEmpty() async {
-    final moods = await _db.getMoodLogs();
-    final gratitude = await _db.getGratitudeEntries();
-    if (moods.isNotEmpty || gratitude.isNotEmpty) return;
-    await _seedMoodLogs();
-    await _seedGratitudeEntries();
+    if ((await _db.getMoodLogs()).isEmpty) {
+      await _seedMoodLogs();
+    }
+    if ((await _db.getGratitudeEntries()).isEmpty) {
+      await _seedGratitudeEntries();
+    }
+    if ((await _db.getTodos()).isEmpty) {
+      await _seedTodos();
+    }
   }
 
   static String _dt(int daysAgo, {int hour = 20, int minute = 0}) {
     final d = DateTime.now().subtract(Duration(days: daysAgo));
     return DateTime(d.year, d.month, d.day, hour, minute).toIso8601String();
+  }
+
+  static DateTime _date(int daysFromNow, {int hour = 9, int minute = 0}) {
+    final d = DateTime.now().add(Duration(days: daysFromNow));
+    return DateTime(d.year, d.month, d.day, hour, minute);
   }
 
   static Future<void> _seedMoodLogs() async {
@@ -145,6 +155,137 @@ class DemoSeedService {
 
     for (final entry in entries) {
       await _db.insertGratitudeEntry(entry);
+    }
+  }
+
+  static Future<void> _seedTodos() async {
+    final entries = <Todo>[
+      // Completed (past)
+      Todo(
+        task: 'Submit capstone proposal draft',
+        details: 'Email final draft to advisor before EOD.',
+        startDate: _date(-6, hour: 9),
+        dueDate: _date(-6, hour: 17),
+        status: 'Completed',
+        priority: 'High',
+        category: 'BOOKS_OFFICE',
+      ),
+      Todo(
+        task: 'Pick up groceries',
+        details: 'Eggs, oat milk, spinach, blueberries.',
+        startDate: _date(-3, hour: 10),
+        dueDate: _date(-3, hour: 12),
+        status: 'Completed',
+        priority: 'Medium',
+        category: 'GROCERY',
+      ),
+      Todo(
+        task: 'Reply to study group thread',
+        startDate: _date(-1, hour: 14),
+        dueDate: _date(-1, hour: 18),
+        status: 'Completed',
+        priority: 'Low',
+        category: 'OTHER',
+      ),
+
+      // In Progress
+      Todo(
+        task: 'Read Chapter 4 — Research Methods',
+        details: 'Take notes on qualitative coding sections.',
+        startDate: _date(0, hour: 9),
+        dueDate: _date(1, hour: 21),
+        status: 'In Progress',
+        priority: 'High',
+        category: 'BOOKS_OFFICE',
+        reminderMinutes: 60,
+      ),
+      Todo(
+        task: 'Refactor mood analytics dashboard',
+        details: 'Split widgets, memoize chart series.',
+        startDate: _date(0, hour: 13),
+        dueDate: _date(2, hour: 18),
+        status: 'In Progress',
+        priority: 'Medium',
+        category: 'ELECTRONICS',
+      ),
+
+      // Recurring
+      Todo(
+        task: 'Morning meditation',
+        details: '10 minutes, breath focus.',
+        startDate: _date(0, hour: 7),
+        dueDate: _date(30, hour: 7, minute: 15),
+        status: 'To Do',
+        priority: 'Low',
+        category: 'BEAUTY_CARE',
+        isRecurring: true,
+        recurrenceType: 'daily',
+        reminderMinutes: 5,
+      ),
+      Todo(
+        task: 'Gym session',
+        details: 'Strength training, full body.',
+        startDate: _date(1, hour: 17),
+        dueDate: _date(28, hour: 18, minute: 30),
+        status: 'To Do',
+        priority: 'Medium',
+        category: 'BEAUTY_CARE',
+        isRecurring: true,
+        recurrenceType: 'weekly',
+        recurrenceDays: 'Mon,Wed,Fri',
+      ),
+
+      // Upcoming
+      Todo(
+        task: 'Dentist appointment',
+        details: 'Cleaning at 2pm — Dr. Patel.',
+        startDate: _date(2, hour: 14),
+        dueDate: _date(2, hour: 15),
+        status: 'To Do',
+        priority: 'High',
+        category: 'PHARMACY',
+        reminderMinutes: 30,
+      ),
+      Todo(
+        task: 'Dinner with friends',
+        details: 'New ramen place downtown — 7pm.',
+        startDate: _date(3, hour: 19),
+        dueDate: _date(3, hour: 21),
+        status: 'To Do',
+        priority: 'Low',
+        category: 'DINING',
+      ),
+      Todo(
+        task: 'Submit expense report',
+        details: 'Attach receipts from last week.',
+        startDate: _date(4, hour: 10),
+        dueDate: _date(5, hour: 17),
+        status: 'To Do',
+        priority: 'Medium',
+        category: 'FEES_TAX',
+      ),
+      Todo(
+        task: 'Book flights for spring break',
+        startDate: _date(6, hour: 9),
+        dueDate: _date(8, hour: 21),
+        status: 'To Do',
+        priority: 'Medium',
+        category: 'TRAVEL',
+      ),
+      Todo(
+        task: 'Deep clean apartment',
+        details: 'Kitchen, bathroom, vacuum bedroom.',
+        startDate: _date(10, hour: 10),
+        dueDate: _date(10, hour: 16),
+        status: 'To Do',
+        priority: 'Low',
+        category: 'HOUSEHOLD',
+        isAllDay: true,
+      ),
+    ];
+
+    for (final todo in entries) {
+      await _db.insertTodo(todo);
     }
   }
 }
