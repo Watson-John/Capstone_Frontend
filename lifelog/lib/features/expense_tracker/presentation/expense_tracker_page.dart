@@ -4,9 +4,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/database_helper.dart';
 import '../../../core/routes/app_routes.dart';
+import '../../../core/services/local_notification_service.dart';
 import '../../../core/widgets/app_page_header.dart';
 import '../data/expense_service.dart';
 import '../domain/models/budget.dart';
@@ -37,6 +39,7 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
 
   List<Expense> _expenses = [];
   Budget? _budget;
+  int _budgetThresholdPct = 20;
   bool _isScanning = false;
   bool _isLoading = true;
   double _scanProgress = 0.0;
@@ -130,6 +133,7 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
 
   Future<void> _loadAll() async {
     final db = DatabaseHelper();
+    final prefs = await SharedPreferences.getInstance();
     final results = await Future.wait([db.getExpenses(), db.getBudget()]);
     if (!mounted) return;
     final expenses = results[0] as List<Expense>;
@@ -143,13 +147,43 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
         catMap.putIfAbsent(item.expenseId!, () => {}).add(item.category);
       }
     }
+    final thresholdPct = prefs.getInt(kBudgetThresholdKey) ?? 20;
     setState(() {
       _expenses = expenses;
       _budget = budget;
       _allLineItems = lineItems;
       _categoriesByExpenseId = catMap;
+      _budgetThresholdPct = thresholdPct;
       _isLoading = false;
     });
+    _checkBudgetThreshold();
+  }
+
+  Future<void> _checkBudgetThreshold() async {
+    try {
+      final budget = _budget;
+      if (budget == null || budget.limitAmount <= 0) return;
+      final now = DateTime.now();
+      final periodStart = budget.currentPeriodStart(now);
+      final periodSpent = _expenses.where((e) {
+        final d = DateTime.tryParse(e.createdAt);
+        return d != null && !d.isBefore(periodStart);
+      }).fold(0.0, (s, e) => s + e.amount);
+      final remaining = budget.limitAmount - periodSpent;
+      final remainingPct = (remaining / budget.limitAmount * 100).round();
+      debugPrint(
+          'budgetCheck: remainingPct=$remainingPct threshold=$_budgetThresholdPct');
+      if (remainingPct > _budgetThresholdPct) {
+        await LocalNotificationService.instance.resetBudgetAboveThreshold();
+        return;
+      }
+      await LocalNotificationService.instance.showBudgetThresholdNotification(
+        spent: periodSpent,
+        limitAmount: budget.limitAmount,
+      );
+    } catch (e) {
+      debugPrint('budgetCheck: error — $e');
+    }
   }
 
   // ── Image picking / scanning ─────────────────────────────────────────────
@@ -386,6 +420,7 @@ class _ExpenseTrackerPageState extends State<ExpenseTrackerPage>
                           spent: _filteredSpent,
                           categorySpending: cats,
                           categoryTotal: catTotal,
+                          alertThresholdPct: _budgetThresholdPct,
                           onEditBudget: () async {
                             final saved = await showBudgetDialog(context, existing: _budget);
                             if (saved == true && mounted) _loadAll();

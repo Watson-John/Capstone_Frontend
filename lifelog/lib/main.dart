@@ -16,6 +16,7 @@ import 'firebase_options.dart'; // Uncomment after running flutterfire configure
 
 import 'core/database/database_helper.dart';
 import 'core/services/app_instance_service.dart';
+import 'core/services/demo_seed_service.dart';
 import 'features/notifications_reminders/domain/models/in_app_notification.dart';
 
 // Handling background messages
@@ -81,6 +82,8 @@ void main() async {
     debugPrint(
         "Firebase init error. Ensure native configs or flutterfire configure are setup: $e");
   }
+
+  await DemoSeedService.seedIfEmpty();
 
   final prefs = await SharedPreferences.getInstance();
 

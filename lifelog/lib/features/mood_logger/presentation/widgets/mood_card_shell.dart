@@ -5,10 +5,12 @@ class MoodCardShell extends StatelessWidget {
     super.key,
     required this.title,
     required this.child,
+    this.titleIcon,
   });
 
   final String title;
   final Widget child;
+  final IconData? titleIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -29,13 +31,21 @@ class MoodCardShell extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-            ),
+          Row(
+            children: [
+              if (titleIcon != null) ...[
+                Icon(titleIcon, size: 16, color: cs.primary),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           child,
