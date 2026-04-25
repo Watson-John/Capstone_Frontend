@@ -6,6 +6,7 @@ import '../../../core/services/local_notification_service.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/widgets/app_fab.dart';
 import '../../../core/widgets/app_page_header.dart';
+import '../../../core/widgets/notif_test_button.dart';
 import '../domain/models/todo_model.dart';
 import 'widgets/schedule_card.dart';
 import 'widgets/tasks_bottom_sheet.dart';
@@ -98,7 +99,15 @@ class TodoListPageState extends State<TodoListPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 16),
-                const AppPageHeader(title: 'To-Do List'),
+                Row(
+                  children: [
+                    const Expanded(child: AppPageHeader(title: 'To-Do List')),
+                    NotifTestButton(onPressed: () async {
+                      await LocalNotificationService.instance
+                          .showTestNotification('task');
+                    }),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 ScheduleCard(
                   todos: _todos,
