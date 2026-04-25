@@ -126,11 +126,12 @@ class _AddMoodPageState extends State<AddMoodPage> {
 
     if (widget.moodToEdit == null) {
       await db.insertMoodLog(newLog);
-      _resetForm();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Mood saved successfully!')),
         );
+        Navigator.pop(context, true);
+        return;
       }
     } else {
       await db.updateMoodLog(newLog);
@@ -144,16 +145,6 @@ class _AddMoodPageState extends State<AddMoodPage> {
         return;
       }
     }
-  }
-
-  void _resetForm() {
-    setState(() {
-      _selectedMoodIndex = null;
-      _energy = null;
-      _selectedTags.clear();
-      _noteController.clear();
-      _aiResponse = '';
-    });
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────

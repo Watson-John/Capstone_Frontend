@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/services/notification_service.dart';
 
 /// Self-fetching card that displays the daily inspirational quote.
+///
+/// The quote is cached in SharedPreferences keyed by calendar date, so we
+/// only hit the backend once per day. Any cached quote is shown immediately
+/// (no spinner) and a new-day refresh happens silently in the background.
 class DashboardQuoteCard extends StatefulWidget {
   const DashboardQuoteCard({super.key});
 
@@ -11,6 +16,9 @@ class DashboardQuoteCard extends StatefulWidget {
 }
 
 class _DashboardQuoteCardState extends State<DashboardQuoteCard> {
+  static const _kQuoteKey = 'cached_daily_quote_text';
+  static const _kQuoteDateKey = 'cached_daily_quote_date';
+
   bool _isLoading = true;
   String _quote = '';
 
@@ -20,11 +28,35 @@ class _DashboardQuoteCardState extends State<DashboardQuoteCard> {
     _load();
   }
 
+  String _todayKey() {
+    final n = DateTime.now();
+    final m = n.month.toString().padLeft(2, '0');
+    final d = n.day.toString().padLeft(2, '0');
+    return '${n.year}-$m-$d';
+  }
+
   Future<void> _load() async {
-    final quote = await NotificationService().getDailyQuote();
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_kQuoteKey);
+    final cachedDate = prefs.getString(_kQuoteDateKey);
+    final today = _todayKey();
+
+    if (cached != null && cached.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _quote = cached;
+          _isLoading = false;
+        });
+      }
+      if (cachedDate == today) return;
+    }
+
+    final fresh = await NotificationService().getDailyQuote();
+    await prefs.setString(_kQuoteKey, fresh);
+    await prefs.setString(_kQuoteDateKey, today);
     if (mounted) {
       setState(() {
-        _quote = quote;
+        _quote = fresh;
         _isLoading = false;
       });
     }

@@ -83,7 +83,10 @@ void main() async {
         "Firebase init error. Ensure native configs or flutterfire configure are setup: $e");
   }
 
-  await DemoSeedService.seedIfEmpty();
+  const demoSeedEnabled = bool.fromEnvironment('DEMO_SEED', defaultValue: false);
+  if (demoSeedEnabled) {
+    await DemoSeedService.seedIfEmpty();
+  }
 
   final prefs = await SharedPreferences.getInstance();
 
